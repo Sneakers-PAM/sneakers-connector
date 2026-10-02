@@ -26,6 +26,8 @@ type fakeVaultClient struct {
 	vaultv1.VaultServiceClient
 
 	jobs []*vaultv1.HeartbeatJob
+	// heartbeatReveal, when set, is what RevealForHeartbeat returns.
+	heartbeatReveal *vaultv1.RevealForHeartbeatResponse
 
 	claimedLimit int32
 	claimedToken string
@@ -47,6 +49,9 @@ func (f *fakeVaultClient) ClaimDueHeartbeats(_ context.Context, in *vaultv1.Clai
 
 func (f *fakeVaultClient) RevealForHeartbeat(_ context.Context, in *vaultv1.RevealForHeartbeatRequest, _ ...grpc.CallOption) (*vaultv1.RevealForHeartbeatResponse, error) {
 	f.revealed = append(f.revealed, in.GetSecretId())
+	if f.heartbeatReveal != nil {
+		return f.heartbeatReveal, nil
+	}
 	return &vaultv1.RevealForHeartbeatResponse{Username: "svc-example", Password: "hunter2"}, nil
 }
 

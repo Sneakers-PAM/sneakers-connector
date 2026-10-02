@@ -66,8 +66,9 @@ heartbeat proves the key is accepted and runs no command.
 - A target with no pins (or none that parse) reports `host key not pinned for this target`.
 - A host whose key matches none of the pins reports `host key mismatch`.
 
-Neither is a failed credential: the vault records them as their own results and doesn't pause the
-heartbeat for them. Both details name the presented key's SHA256 fingerprint, never key material.
+Neither is a wrong credential: the connector reports them as their own heartbeat results
+(`HOST_KEY_NOT_PINNED`, `HOST_KEY_MISMATCH`), never as `FAILED`. Both details, and the
+`ssh host key refused` warning, name the presented key's SHA256 fingerprint, never key material.
 Pin the target in the vault (site admins only) with the key's authorized_keys line.
 
 ## Troubleshooting

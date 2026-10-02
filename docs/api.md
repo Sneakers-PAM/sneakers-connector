@@ -61,6 +61,7 @@ the adapter is given:
 | `connection.use_tls` | TLS on (LDAPS) |
 | `target.domain` | domain |
 | `target.realm` | Kerberos realm |
+| `target.ssh_host_keys` | the SSH host-key pins (authorized_keys lines); empty means not pinned |
 
 | Protocol | Heartbeat | Rotation |
 |---|---|---|
@@ -100,6 +101,8 @@ when the port is 0.
 | valid | `OK` | `OK` |
 | invalid (the target rejected the credential or the change) | `FAILED` | `FAILED` |
 | unreachable (no answer, or an answer that doesn't confirm a rejection) | `UNREACHABLE` | `FAILED` |
+| SSH target with no usable pin; the account's key is never offered | `HOST_KEY_NOT_PINNED` | `FAILED` |
+| SSH host presented a key matching none of the pins; the account's key is never offered | `HOST_KEY_MISMATCH` | `FAILED` |
 | refused (the built-in Administrator) | not used | `SKIPPED` for both, with `builtin_administrator` set |
 
 A rotation reports two phases. **Change** is the outcome of changing the password. **Validate** is
