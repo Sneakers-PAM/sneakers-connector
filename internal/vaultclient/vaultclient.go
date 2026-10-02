@@ -6,16 +6,28 @@
 package vaultclient
 
 import (
+	"fmt"
 	"os"
 
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/server"
+	"github.com/Sneakers-PAM/sneakers-connector/internal/tokensource"
+	"github.com/Sneakers-PAM/sneakers-connector/internal/workloadauth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 // defaultAddr is the vault's address in a local development setup.
 const defaultAddr = "localhost:9091"
+
+const (
+	// EnvWorkloadTokenFile names the projected workload token sent to the
+	// vault on every call.
+	EnvWorkloadTokenFile = workloadauth.EnvTokenFile
+	// EnvConnectorTokenFile is the older name for the same file, read when
+	// EnvWorkloadTokenFile is unset.
+	EnvConnectorTokenFile = tokensource.EnvTokenFile
+)
 
 // Client wraps the dialled gRPC connection alongside the generated vault
 // client so callers get one value to hold and Close, while still satisfying
@@ -29,22 +41,43 @@ type Client struct {
 // Dial connects to VAULT_ADDR (env, default localhost:9091) with insecure
 // transport credentials (the connection carries no TLS of its own; run it
 // where the network or a mesh protects it) plus the OTel client stats
-// handler so outbound calls are traced.
-func Dial() (*Client, error) {
-	addr := env("VAULT_ADDR", defaultAddr)
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()), server.ClientStatsHandler())
+// handler so outbound calls are traced. Every call carries the workload
+// token from WORKLOAD_TOKEN_FILE (or CONNECTOR_TOKEN_FILE) as
+// "authorization: Bearer <token>", re-read on each call. With neither set no
+// token is sent, which only a vault with authentication off accepts.
+func Dial() (*Client, error) { return dial(os.Getenv) }
+
+func dial(getenv func(string) string) (*Client, error) {
+	addr := getenv("VAULT_ADDR")
+	if addr == "" {
+		addr = defaultAddr
+	}
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), server.ClientStatsHandler()}
+	tokenOpt, ok, err := workloadauth.DialOptionFromEnv(tokenFileAlias(getenv))
+	if err != nil {
+		return nil, fmt.Errorf("vault workload token: %w", err)
+	}
+	if ok {
+		opts = append(opts, tokenOpt)
+	}
+	conn, err := grpc.NewClient(addr, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return &Client{conn: conn, VaultServiceClient: vaultv1.NewVaultServiceClient(conn)}, nil
 }
 
-// Close releases the underlying gRPC connection.
-func (c *Client) Close() error { return c.conn.Close() }
-
-func env(k, def string) string {
-	if v := os.Getenv(k); v != "" {
+// tokenFileAlias answers EnvWorkloadTokenFile with EnvConnectorTokenFile
+// when only the older name is set.
+func tokenFileAlias(getenv func(string) string) func(string) string {
+	return func(k string) string {
+		v := getenv(k)
+		if k == EnvWorkloadTokenFile && v == "" {
+			return getenv(EnvConnectorTokenFile)
+		}
 		return v
 	}
-	return def
 }
+
+// Close releases the underlying gRPC connection.
+func (c *Client) Close() error { return c.conn.Close() }

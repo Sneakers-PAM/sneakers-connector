@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package tokensource supplies the worker-identity token the connector
-// presents to the vault on every claim, reveal and report call. The token
-// comes either from a file (a Kubernetes projected ServiceAccount token the
-// kubelet rotates in place) or, when no file is configured, from the static
-// dev token.
+// puts in the identity field of every claim, reveal and report call. The
+// token comes either from a file (a Kubernetes projected ServiceAccount token
+// the kubelet rotates in place) or, when no file is configured, from the
+// static dev token.
 package tokensource
 
 import (
@@ -16,12 +16,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sneakers-PAM/sneakers-connector/internal/workloadauth"
 	"github.com/rs/zerolog"
 )
 
 const (
-	// EnvTokenFile names the env var holding the token file path. When set,
-	// it takes precedence over EnvDevToken.
+	// EnvWorkloadTokenFile names the env var holding the workload token file
+	// path, the same file sent as the bearer token on every vault call. When
+	// set, it takes precedence over EnvTokenFile and EnvDevToken.
+	EnvWorkloadTokenFile = workloadauth.EnvTokenFile
+	// EnvTokenFile is the older name for EnvWorkloadTokenFile, read when it
+	// is unset. When set, it takes precedence over EnvDevToken.
 	EnvTokenFile = "CONNECTOR_TOKEN_FILE" // #nosec G101 -- an env var name, not a credential
 	// EnvDevToken names the env var holding the static dev token.
 	EnvDevToken = "CONNECTOR_DEV_TOKEN" // #nosec G101 -- an env var name, not a credential
@@ -167,11 +172,17 @@ func checkTokenPath(path, base string) error {
 }
 
 // FromEnv picks the token source from the environment: the file named by
-// EnvTokenFile when set, otherwise the static EnvDevToken (default
-// "dev-connector-token"). The token file must be an absolute, clean path
-// under EnvTokenDir (default DefaultTokenDir).
+// EnvWorkloadTokenFile or, when that is unset, EnvTokenFile; otherwise the
+// static EnvDevToken (default "dev-connector-token"). The token file must be
+// an absolute, clean path under EnvTokenDir (default DefaultTokenDir).
 func FromEnv(logger zerolog.Logger) (Source, error) {
-	if raw := os.Getenv(EnvTokenFile); raw != "" {
+	fileEnv := EnvWorkloadTokenFile
+	raw := os.Getenv(fileEnv)
+	if raw == "" {
+		fileEnv = EnvTokenFile
+		raw = os.Getenv(fileEnv)
+	}
+	if raw != "" {
 		base := os.Getenv(EnvTokenDir)
 		if base == "" {
 			base = DefaultTokenDir
@@ -182,8 +193,8 @@ func FromEnv(logger zerolog.Logger) (Source, error) {
 			return nil, err
 		}
 		if err := checkTokenPath(raw, base); err != nil {
-			err = fmt.Errorf("%s: %w", EnvTokenFile, err)
-			logger.Error().Err(err).Str("env", EnvTokenFile).Str("token_dir", base).Msg("connector token file path rejected")
+			err = fmt.Errorf("%s: %w", fileEnv, err)
+			logger.Error().Err(err).Str("env", fileEnv).Str("token_dir", base).Msg("connector token file path rejected")
 			return nil, err
 		}
 		return NewFile(filepath.Clean(raw), logger)
@@ -192,6 +203,6 @@ func FromEnv(logger zerolog.Logger) (Source, error) {
 	if tok == "" {
 		tok = defaultDevToken
 	}
-	logger.Info().Msg("connector token from " + EnvDevToken + " (no " + EnvTokenFile + " set)")
+	logger.Info().Msg("connector token from " + EnvDevToken + " (no " + EnvWorkloadTokenFile + " or " + EnvTokenFile + " set)")
 	return Static(tok), nil
 }

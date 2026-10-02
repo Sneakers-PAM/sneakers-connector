@@ -15,8 +15,9 @@ On `GRPC_PORT`:
 ## What it calls on the vault
 
 All six calls are on `sneakers.vault.v1.VaultService` (the stubs are generated here, see
-[Calling other services](#calling-other-services)), and each carries the worker-identity token in
-`identity.token` (see [configuration.md](configuration.md#vault-identity-token)).
+[Calling other services](#calling-other-services)). Each carries the workload token as
+`authorization: Bearer <token>` metadata and the worker-identity token in `identity.token` (see
+[configuration.md](configuration.md#vault-identity-token)).
 
 | Call | When | What the connector does with it |
 |---|---|---|
@@ -46,6 +47,10 @@ the callee's protos, pinned by commit:
   directory and run the script.
 - To move to a newer vault, change the ref, run the script and commit `proto-refs.env` and `gen/`
   together. Build & Test fails when `gen/` doesn't match the pins.
+- The same ref pins `internal/workloadauth`, the service-to-service authentication package copied
+  byte for byte from the vault. `scripts/workloadauth-check.sh` downloads the vault's copy at the ref
+  and fails Build & Test when this one differs (`SNEAKERS_VAULT_DIR` points it at a local vault
+  checkout instead).
 - The `proto-sync` check (from `Sneakers-PAM/.github`) fails a PR whose pin isn't on the vault's
   `main` or that the vault's `main` breaks, and warns when `main` has moved on. On a schedule it
   opens a PR that bumps the pin.

@@ -22,7 +22,10 @@ never logs credential material or the worker token.
 - `internal/worker/` - the heartbeat and rotation poll loops and their tests (against a fake vault
   client).
 - `internal/tokensource/` - the worker-identity token: a projected token file or the dev token.
-- `internal/vaultclient/` - the gRPC client for the vault.
+- `internal/vaultclient/` - the gRPC client for the vault; it sends the workload token on every call.
+- `internal/workloadauth/` - service-to-service authentication, a byte-for-byte copy of the
+  canonical package in sneakers-vault at `SNEAKERS_VAULT_REF`. Never edit it here: change it in the
+  vault, bump the ref and copy it again. `scripts/workloadauth-check.sh` (run in CI) compares them.
 - `internal/grpcsvc/` - the `sneakers.common.v1.HealthService` handler.
 - `internal/config/`, `internal/server/` - the environment config and the gRPC server bootstrap.
 - `proto/` - the health API; `gen/go/` - the generated Go (committed, checked current in CI),
