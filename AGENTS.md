@@ -25,7 +25,9 @@ never logs credential material or the worker token.
 - `internal/vaultclient/` - the gRPC client for the vault.
 - `internal/grpcsvc/` - the `sneakers.common.v1.HealthService` handler.
 - `internal/config/`, `internal/server/` - the environment config and the gRPC server bootstrap.
-- `proto/` - the health API; `gen/go/` - the generated Go (committed, checked current in CI).
+- `proto/` - the health API; `gen/go/` - the generated Go (committed, checked current in CI),
+  including the vault client stubs in `gen/go/thirdparty/vault/v1`, generated from the vault
+  protos pinned in `proto-refs.env` (see docs/api.md, "Calling other services").
 - `docs/` - configuration, API and runbook.
 
 ## Build, test, lint
@@ -35,8 +37,9 @@ never logs credential material or the worker token.
   LDAP adapter's live tests, which need lldap on localhost:23890 with base DN `dc=example,dc=org`
   (they skip without it; CI runs one), and the Kerberos live tests, which need a KDC and the
   `KRB_TEST_*` variables (they skip without them).
-- Lint: `task lint`, plus `buf lint` for the proto.
-- Generated code: `buf generate` with the plugin versions pinned in
+- Lint: `task lint`, plus `buf lint` for the proto (after `scripts/proto-generate.sh` has fetched
+  the vault protos).
+- Generated code: `scripts/proto-generate.sh`, with the plugin versions pinned in
   `.github/workflows/job-go-lang-ci.yaml`.
 - License headers: `task license` (golic, the Apache-2.0 SPDX header in `.golic.yaml`).
 

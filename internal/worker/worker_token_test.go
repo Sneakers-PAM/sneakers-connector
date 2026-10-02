@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	vaultv1 "github.com/Sneakers-PAM/sneakers-vault/gen/go/sneakers/vault/v1"
+	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"google.golang.org/grpc"
 )
 

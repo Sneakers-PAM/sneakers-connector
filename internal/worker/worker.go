@@ -15,8 +15,8 @@ import (
 	"time"
 
 	log "github.com/Bugs5382/go-log"
+	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/adapter"
-	vaultv1 "github.com/Sneakers-PAM/sneakers-vault/gen/go/sneakers/vault/v1"
 )
 
 // claimLimit bounds how many due heartbeat jobs are claimed per tick.

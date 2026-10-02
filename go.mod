@@ -7,7 +7,6 @@ toolchain go1.26.6
 require (
 	github.com/Bugs5382/go-log v1.3.0
 	github.com/Bugs5382/go-otel v1.3.2
-	github.com/Sneakers-PAM/sneakers-vault v0.0.0-20261002020737-57e5cd367895
 	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/rs/zerolog v1.35.1

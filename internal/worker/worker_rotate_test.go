@@ -6,8 +6,8 @@ package worker
 import (
 	"testing"
 
+	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/adapter"
-	vaultv1 "github.com/Sneakers-PAM/sneakers-vault/gen/go/sneakers/vault/v1"
 )
 
 // TestRunClaimsRevealsRotatesValidatesReportsInSequence drives one due

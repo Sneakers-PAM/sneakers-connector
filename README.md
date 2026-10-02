@@ -47,7 +47,8 @@ task license  # check the Apache-2.0 headers (golic)
 ## 📚 Where to look
 
 - [docs/configuration.md](docs/configuration.md): environment variables and the worker token.
-- [docs/api.md](docs/api.md): what it serves, the vault calls it makes, and the adapters.
+- [docs/api.md](docs/api.md): what it serves, the vault calls it makes (and how its stubs are
+  generated), and the adapters.
 - [docs/runbook.md](docs/runbook.md): operating the connector.
 
 ## ⚖️ License
