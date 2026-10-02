@@ -5,6 +5,7 @@ package worker
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -153,7 +154,7 @@ func TestRunClaimsRevealsValidatesReportsInSequence(t *testing.T) {
 		t.Fatalf("validate cred = %+v, want revealed username/password", fa.gotCred)
 	}
 	wantConn := adapter.Conn{Host: "dc1.ad.example.org", Port: 636, UseTLS: true, Domain: "ad.example.org"}
-	if fa.gotConn != wantConn {
+	if !reflect.DeepEqual(fa.gotConn, wantConn) {
 		t.Fatalf("validate conn = %+v, want %+v", fa.gotConn, wantConn)
 	}
 	if len(fc.reports) != 1 {

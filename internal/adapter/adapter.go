@@ -25,6 +25,14 @@ const (
 	// Refused means the account must never be rotated (the domain's built-in
 	// Administrator), so Rotate made no change. Only Rotate returns it.
 	Refused
+	// HostKeyNotPinned means the target has no pinned host key, so the
+	// adapter refused to authenticate to it. Nothing about the credential
+	// was learned.
+	HostKeyNotPinned
+	// HostKeyMismatch means the target presented a host key that matches
+	// none of its pins, so the adapter refused to authenticate to it.
+	// Nothing about the credential was learned.
+	HostKeyMismatch
 )
 
 // BuiltinAdministratorReason is the detail Rotate reports with Refused.
@@ -41,6 +49,10 @@ func (r Result) String() string {
 		return "unreachable"
 	case Refused:
 		return "refused"
+	case HostKeyNotPinned:
+		return "host_key_not_pinned"
+	case HostKeyMismatch:
+		return "host_key_mismatch"
 	default:
 		return "unknown"
 	}
@@ -63,6 +75,10 @@ type Conn struct {
 	UseTLS bool
 	Domain string
 	Realm  string
+	// HostKeys are the target's pinned SSH host keys in authorized_keys
+	// form. The ssh adapter connects only to a host presenting one of them;
+	// empty means not pinned, and it refuses to connect.
+	HostKeys []string
 }
 
 // Adapter validates a credential against a target by binding as the account,

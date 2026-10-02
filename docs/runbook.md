@@ -58,8 +58,17 @@ LDAPS checks the target's certificate against the system roots. A directory with
 certificate needs its CA trusted in the image. `CONNECTOR_TLS_INSECURE=true` turns the check off
 for a test directory only.
 
-SSH heartbeats don't check the target's host key yet: they prove the key is accepted, and run no
-command.
+SSH heartbeats connect only to a host that presents one of the target's pinned host keys, the same
+check the SSH broker makes. The vault sends the pins with each job. The check runs during key
+exchange, before the account's key is offered, so a host that isn't verified never sees it. A
+heartbeat proves the key is accepted and runs no command.
+
+- A target with no pins (or none that parse) reports `host key not pinned for this target`.
+- A host whose key matches none of the pins reports `host key mismatch`.
+
+Neither is a failed credential: the vault records them as their own results and doesn't pause the
+heartbeat for them. Both details name the presented key's SHA256 fingerprint, never key material.
+Pin the target in the vault (site admins only) with the key's authorized_keys line.
 
 ## Troubleshooting
 
@@ -69,6 +78,7 @@ command.
 | `connector token file unusable` or `unavailable` (error, at start) | The token file is missing, unreadable or empty. |
 | `no adapter registered for protocol` (warn) | A job names a protocol the connector doesn't have; it is reported so the vault moves on. |
 | `rotation refused: built-in Administrator account` (warn) | Expected for RID 500 accounts; nothing was changed. |
+| `ssh host key refused` (warn) | The SSH target is unpinned or presented another key. `detail` names the presented fingerprint; pin or re-pin the target. |
 
 ## Shutdown
 
