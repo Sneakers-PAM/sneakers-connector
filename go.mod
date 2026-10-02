@@ -8,6 +8,7 @@ require (
 	github.com/Bugs5382/go-log v1.3.0
 	github.com/Bugs5382/go-otel v1.3.2
 	github.com/go-ldap/ldap/v3 v3.4.14
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/rs/zerolog v1.35.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.70.0
