@@ -1,4 +1,5 @@
 /bin/
+/connector
 *.test
 *.out
 coverage.*
