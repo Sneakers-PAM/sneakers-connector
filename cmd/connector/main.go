@@ -57,14 +57,15 @@ func main() {
 		logger.Fatal().Err(err).Msg("connector token source")
 	}
 
-	go worker.RunWithSource(ctx, vc, tokens, pollInterval)
+	svcLog := log.NewLogger(serviceName)
+	go worker.RunWithLogger(ctx, vc, tokens, pollInterval, svcLog)
 
 	logger.Info().Str("port", cfg.GRPCPort).Msg("starting")
 
 	// TODO: when the connector gains mutating RPCs of its own, wire an audit
 	// emitter here and pass it to the grpcsvc constructors, so every mutation
 	// emits an audit event.
-	if err := server.Run(ctx, cfg.GRPCPort, func(gs *grpc.Server) {
+	if err := server.RunWithLogger(ctx, cfg.GRPCPort, svcLog, func(gs *grpc.Server) {
 		grpcsvc.Register(gs)
 	}); err != nil {
 		logger.Fatal().Err(err).Msg("server exited")
