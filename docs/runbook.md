@@ -7,9 +7,10 @@ At start the connector:
 1. reads its configuration from the environment (`DATABASE_DSN` must be set, though nothing uses
    it);
 2. starts OpenTelemetry export to `OTEL_EXPORTER_OTLP_ENDPOINT`;
-3. sets up the client for the vault at `VAULT_ADDR` (the connection is made lazily, on the first
-   call);
-4. loads the worker token: the file at `CONNECTOR_TOKEN_FILE`, or the dev token;
+3. sets up the client for the vault at `VAULT_ADDR`, sending the workload token on every call (the
+   connection is made lazily, on the first call; an unreadable token file fails here);
+4. loads the worker token: the file at `WORKLOAD_TOKEN_FILE` (or `CONNECTOR_TOKEN_FILE`), or the
+   dev token;
 5. starts the worker, which polls straight away and then every 30 seconds;
 6. serves the health services on `GRPC_PORT`.
 

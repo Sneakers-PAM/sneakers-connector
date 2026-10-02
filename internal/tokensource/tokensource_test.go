@@ -363,3 +363,41 @@ func TestCheckTokenPathAcceptsFileUnderDefaultDir(t *testing.T) {
 		t.Fatalf("checkTokenPath: %v", err)
 	}
 }
+
+func TestFromEnvUsesWorkloadTokenFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "token")
+	writeToken(t, path, firstToken, time.Unix(1000, 0))
+	t.Setenv(EnvTokenDir, dir)
+	t.Setenv(EnvWorkloadTokenFile, path)
+	t.Setenv(EnvTokenFile, "")
+	t.Setenv(EnvDevToken, "ignored-dev-token")
+
+	var buf bytes.Buffer
+	src, err := FromEnv(zerolog.New(&buf))
+	if err != nil {
+		t.Fatalf("FromEnv: %v", err)
+	}
+	if got := src.Token(); got != firstToken {
+		t.Fatalf("Token() = %q, want %q", got, firstToken)
+	}
+}
+
+func TestFromEnvPrefersWorkloadTokenFileOverAlias(t *testing.T) {
+	dir := t.TempDir()
+	workload, alias := filepath.Join(dir, "workload"), filepath.Join(dir, "alias")
+	writeToken(t, workload, firstToken, time.Unix(1000, 0))
+	writeToken(t, alias, secondToken, time.Unix(1000, 0))
+	t.Setenv(EnvTokenDir, dir)
+	t.Setenv(EnvWorkloadTokenFile, workload)
+	t.Setenv(EnvTokenFile, alias)
+
+	var buf bytes.Buffer
+	src, err := FromEnv(zerolog.New(&buf))
+	if err != nil {
+		t.Fatalf("FromEnv: %v", err)
+	}
+	if got := src.Token(); got != firstToken {
+		t.Fatalf("Token() = %q, want %q (the %s file)", got, firstToken, EnvWorkloadTokenFile)
+	}
+}
