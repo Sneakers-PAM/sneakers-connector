@@ -16,8 +16,9 @@ import (
 )
 
 // startTestSSHServer starts a minimal ssh server that accepts only authorizedPub.
-// It returns the listen host/port and a stop func. Synthetic keys only.
-func startTestSSHServer(t *testing.T, authorizedPub ssh.PublicKey) (host string, port int, stop func()) {
+// It returns the listen host/port, the pin for its host key and a stop func.
+// Synthetic keys only.
+func startTestSSHServer(t *testing.T, authorizedPub ssh.PublicKey) (host string, port int, pin string, stop func()) {
 	t.Helper()
 	_, hostPriv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -61,7 +62,7 @@ func startTestSSHServer(t *testing.T, authorizedPub ssh.PublicKey) (host string,
 		}
 	}()
 	addr := ln.Addr().(*net.TCPAddr)
-	return "127.0.0.1", addr.Port, func() { _ = ln.Close() }
+	return "127.0.0.1", addr.Port, pinOf(signer), func() { _ = ln.Close() }
 }
 
 var errAuth = &sshAuthError{}
@@ -90,7 +91,7 @@ func genClientKey(t *testing.T) (pemPriv string, pub ssh.PublicKey) {
 
 func TestSSHValidateSucceedsWithAuthorizedKey(t *testing.T) {
 	pemPriv, pub := genClientKey(t)
-	host, port, stop := startTestSSHServer(t, pub)
+	host, port, pin, stop := startTestSSHServer(t, pub)
 	defer stop()
 
 	a, ok := Get("ssh")
@@ -99,7 +100,7 @@ func TestSSHValidateSucceedsWithAuthorizedKey(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, detail := a.Validate(ctx, Conn{Host: host, Port: port}, Cred{Username: "svc", PrivateKey: pemPriv})
+	res, detail := a.Validate(ctx, Conn{Host: host, Port: port, HostKeys: []string{pin}}, Cred{Username: "svc", PrivateKey: pemPriv})
 	if res != Valid {
 		t.Fatalf("Validate = %v (%s), want Valid", res, detail)
 	}
@@ -108,13 +109,13 @@ func TestSSHValidateSucceedsWithAuthorizedKey(t *testing.T) {
 func TestSSHValidateRejectsWrongKey(t *testing.T) {
 	_, authPub := genClientKey(t)
 	otherPem, _ := genClientKey(t) // a different, unauthorized key
-	host, port, stop := startTestSSHServer(t, authPub)
+	host, port, pin, stop := startTestSSHServer(t, authPub)
 	defer stop()
 
 	a, _ := Get("ssh")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	res, _ := a.Validate(ctx, Conn{Host: host, Port: port}, Cred{Username: "svc", PrivateKey: otherPem})
+	res, _ := a.Validate(ctx, Conn{Host: host, Port: port, HostKeys: []string{pin}}, Cred{Username: "svc", PrivateKey: otherPem})
 	if res != Invalid {
 		t.Fatalf("Validate with wrong key = %v, want Invalid", res)
 	}

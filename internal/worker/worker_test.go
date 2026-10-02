@@ -5,6 +5,7 @@ package worker
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -25,6 +26,8 @@ type fakeVaultClient struct {
 	vaultv1.VaultServiceClient
 
 	jobs []*vaultv1.HeartbeatJob
+	// heartbeatReveal, when set, is what RevealForHeartbeat returns.
+	heartbeatReveal *vaultv1.RevealForHeartbeatResponse
 
 	claimedLimit int32
 	claimedToken string
@@ -46,6 +49,9 @@ func (f *fakeVaultClient) ClaimDueHeartbeats(_ context.Context, in *vaultv1.Clai
 
 func (f *fakeVaultClient) RevealForHeartbeat(_ context.Context, in *vaultv1.RevealForHeartbeatRequest, _ ...grpc.CallOption) (*vaultv1.RevealForHeartbeatResponse, error) {
 	f.revealed = append(f.revealed, in.GetSecretId())
+	if f.heartbeatReveal != nil {
+		return f.heartbeatReveal, nil
+	}
 	return &vaultv1.RevealForHeartbeatResponse{Username: "svc-example", Password: "hunter2"}, nil
 }
 
@@ -153,7 +159,7 @@ func TestRunClaimsRevealsValidatesReportsInSequence(t *testing.T) {
 		t.Fatalf("validate cred = %+v, want revealed username/password", fa.gotCred)
 	}
 	wantConn := adapter.Conn{Host: "dc1.ad.example.org", Port: 636, UseTLS: true, Domain: "ad.example.org"}
-	if fa.gotConn != wantConn {
+	if !reflect.DeepEqual(fa.gotConn, wantConn) {
 		t.Fatalf("validate conn = %+v, want %+v", fa.gotConn, wantConn)
 	}
 	if len(fc.reports) != 1 {

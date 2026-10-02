@@ -135,11 +135,12 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 	}
 
 	conn := adapter.Conn{
-		Host:   job.GetConnection().GetHost(),
-		Port:   int(job.GetConnection().GetPort()),
-		UseTLS: job.GetConnection().GetUseTls(),
-		Domain: job.GetTarget().GetDomain(),
-		Realm:  job.GetTarget().GetRealm(),
+		Host:     job.GetConnection().GetHost(),
+		Port:     int(job.GetConnection().GetPort()),
+		UseTLS:   job.GetConnection().GetUseTls(),
+		Domain:   job.GetTarget().GetDomain(),
+		Realm:    job.GetTarget().GetRealm(),
+		HostKeys: job.GetTarget().GetSshHostKeys(),
 	}
 	cred := adapter.Cred{
 		Username:   reveal.GetUsername(),
@@ -155,6 +156,9 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 		result, detail, flags = av.ValidateAccount(ctx, conn, cred)
 	} else {
 		result, detail = a.Validate(ctx, conn, cred)
+	}
+	if result == adapter.HostKeyNotPinned || result == adapter.HostKeyMismatch {
+		logger.Warn("ssh host key refused", log.F("result", result.String()), log.F("detail", detail), log.F("pinned_keys", len(conn.HostKeys)))
 	}
 	if flags.Known {
 		logger.Debug("heartbeat read account flags", log.F("builtin_administrator", flags.BuiltinAdministrator), log.F("admin_count", flags.AdminCount))
@@ -193,6 +197,10 @@ func toHeartbeatResult(r adapter.Result) vaultv1.HeartbeatResult {
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_FAILED
 	case adapter.Unreachable:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE
+	case adapter.HostKeyNotPinned:
+		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_HOST_KEY_NOT_PINNED
+	case adapter.HostKeyMismatch:
+		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_HOST_KEY_MISMATCH
 	default:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNKNOWN
 	}
@@ -268,11 +276,12 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 	version := reveal.GetVersion()
 
 	conn := adapter.Conn{
-		Host:   job.GetConnection().GetHost(),
-		Port:   int(job.GetConnection().GetPort()),
-		UseTLS: job.GetConnection().GetUseTls(),
-		Domain: job.GetTarget().GetDomain(),
-		Realm:  job.GetTarget().GetRealm(),
+		Host:     job.GetConnection().GetHost(),
+		Port:     int(job.GetConnection().GetPort()),
+		UseTLS:   job.GetConnection().GetUseTls(),
+		Domain:   job.GetTarget().GetDomain(),
+		Realm:    job.GetTarget().GetRealm(),
+		HostKeys: job.GetTarget().GetSshHostKeys(),
 	}
 	current := adapter.Cred{
 		Username: reveal.GetUsername(),
@@ -362,15 +371,16 @@ func reportRotation(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceC
 }
 
 // toRotationPhase maps an adapter outcome onto the wire RotationPhase
-// reported to the vault. Unlike toHeartbeatResult, Invalid and Unreachable
-// both map to FAILED: for rotation, a change or validation that couldn't be
-// confirmed successful is a failure either way (the vault must not treat an
-// unreachable target as proof of anything), never its own distinct phase.
+// reported to the vault. Unlike toHeartbeatResult, Invalid, Unreachable and
+// the two host-key refusals all map to FAILED: for rotation, a change or
+// validation that couldn't be confirmed successful is a failure either way
+// (the vault must not treat an unreachable target as proof of anything),
+// never its own distinct phase.
 func toRotationPhase(r adapter.Result) vaultv1.RotationPhase {
 	switch r {
 	case adapter.Valid:
 		return vaultv1.RotationPhase_ROTATION_PHASE_OK
-	case adapter.Invalid, adapter.Unreachable:
+	case adapter.Invalid, adapter.Unreachable, adapter.HostKeyNotPinned, adapter.HostKeyMismatch:
 		return vaultv1.RotationPhase_ROTATION_PHASE_FAILED
 	default:
 		return vaultv1.RotationPhase_ROTATION_PHASE_UNSPECIFIED
