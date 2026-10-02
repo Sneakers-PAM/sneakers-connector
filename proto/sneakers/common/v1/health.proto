@@ -1,0 +1,20 @@
+// Copyright 2026 The Sneakers-PAM Authors
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package sneakers.common.v1;
+
+option go_package = "github.com/Sneakers-PAM/sneakers-connector/gen/go/sneakers/common/v1;commonv1";
+
+// Minimal service liveness surface. Probes use the standard grpc.health.v1
+// service, which the server also registers.
+service HealthService {
+  rpc Check(CheckRequest) returns (CheckResponse);
+}
+
+message CheckRequest {}
+
+message CheckResponse {
+  string status = 1; // "SERVING"
+}
