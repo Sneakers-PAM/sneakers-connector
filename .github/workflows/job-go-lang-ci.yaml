@@ -9,12 +9,33 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
+env:
+  BUF_VERSION: v1.70.0
+  PROTOC_GEN_GO_VERSION: v1.36.11
+  PROTOC_GEN_GO_GRPC_VERSION: v1.6.2
 jobs:
   build-test:
     name: 🧪 Build & Test
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The LDAP adapter's live tests bind against lldap on localhost:23890 with
+    # base DN dc=example,dc=org, as its built-in admin. The admin password is
+    # a throwaway for this CI container only.
+    services:
+      lldap:
+        image: lldap/lldap:v0.6.3-alpine@sha256:2a8454b668c1aba7157e832eab0e242e1e7eb5fb7591d7e7774ba05286511ca8
+        env:
+          LLDAP_JWT_SECRET: ci-only-jwt-secret
+          LLDAP_KEY_SEED: ci-only-key-seed
+          LLDAP_LDAP_BASE_DN: dc=example,dc=org
+          LLDAP_LDAP_USER_PASS: ci-only-admin-password
+        ports:
+          - 23890:3890
+    env:
+      LDAP_TEST_VALID: "1"
+      LDAP_TEST_USER: admin
+      LDAP_TEST_PASSWORD: ci-only-admin-password
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,16 +45,55 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      # The live LDAP tests skip when lldap isn't listening, so fail here
+      # instead of letting them skip quietly.
+      - name: Wait for lldap
+        run: |
+          for _ in $(seq 1 60); do
+            nc -z localhost 23890 && exit 0
+            sleep 1
+          done
+          echo "lldap did not start listening on localhost:23890"
+          exit 1
+      # go install checks each module against the Go checksum database.
+      - name: Install buf and the protoc plugins
+        run: |
+          go install "github.com/bufbuild/buf/cmd/buf@${BUF_VERSION}"
+          go install "google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION}"
+          go install "google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}"
+      # Fetches the callee protos pinned in proto-refs.env, which buf lint
+      # needs too, so it runs first.
+      - name: Generated code is current
+        run: |
+          scripts/proto-generate.sh
+          git diff --exit-code -- gen
+          test -z "$(git status --porcelain -- gen)"
+      - name: buf lint
+        run: buf lint
+      - name: buf breaking
+        run: |
+          if git cat-file -e origin/main:proto 2>/dev/null; then
+            git worktree add -q --detach "$RUNNER_TEMP/base" origin/main
+            buf breaking proto --against "$RUNNER_TEMP/base/proto"
+          else
+            echo "main has no proto yet; nothing to compare against"
+          fi
       - name: gofmt
         run: |
           unformatted="$(gofmt -l .)"
           if [ -n "$unformatted" ]; then
             echo "gofmt needed on:"; echo "$unformatted"; exit 1
           fi
+      - name: go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
       - name: Build
         run: go build ./...
+      - name: Vet
+        run: go vet ./...
       - name: Test
-        run: go test ./... -cover
+        run: go test -count=1 ./... -cover
   lint:
     name: 🧹 GolangCI
     if: github.event.pull_request.draft == false
