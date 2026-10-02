@@ -202,7 +202,7 @@ func TestRunReportsUnreachableForJobWithNoRegisteredAdapter(t *testing.T) {
 	if len(fc.revealed) != 0 {
 		t.Fatalf("revealed = %v, want none (adapter missing, no reveal attempted)", fc.revealed)
 	}
-	// Regression guard for I5b: a job whose protocol has no registered
+	// Regression guard: a job whose protocol has no registered
 	// adapter must still be reported (UNREACHABLE), not silently skipped.
 	// The vault only advances a secret's next_heartbeat_at on report, so a
 	// skip-without-report would leave the job due forever, re-claimed and

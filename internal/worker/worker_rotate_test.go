@@ -208,7 +208,7 @@ func TestRunRotationPrefersKerberosValidateWhenRealmSet(t *testing.T) {
 	}
 }
 
-// TestRunRotationKerberosValidateGetsPortZero is the C2 regression guard:
+// TestRunRotationKerberosValidateGetsPortZero is a regression guard:
 // when validation is routed to the kerberos adapter (Realm set), the Conn
 // it receives must NOT carry the LDAPS port used to perform the change --
 // reusing that port sends the AS-REQ nowhere a KDC listens, so validation
@@ -329,7 +329,7 @@ func TestToRotationPhaseMapping(t *testing.T) {
 }
 
 // TestValidateAdapterForPrefersKerberosOnlyWithRealm is a table test of the
-// pure selection helper backing the domain-insight preference.
+// pure selection helper backing the prefer-Kerberos-when-a-realm-is-set rule.
 func TestValidateAdapterForPrefersKerberosOnlyWithRealm(t *testing.T) {
 	changeAdapter := &fakeAdapter{}
 	kAdapter, ok := adapter.Get("kerberos")

@@ -173,8 +173,8 @@ func TestRotateLLDAPUsesPasswordModifyIdentity(t *testing.T) {
 	}
 }
 
-// TestBuildADChangePasswordModifyCarriesDeleteThenAdd is the C1 regression
-// guard: AD requires its self-service "Change Password" form -- a Delete of
+// TestBuildADChangePasswordModifyCarriesDeleteThenAdd guards the wire shape:
+// AD requires its self-service "Change Password" form -- a Delete of
 // the OLD unicodePwd value followed by an Add of the NEW one, both in the
 // SAME ModifyRequest -- not the administrative Replace form (which needs
 // the Reset-Password control-access right this adapter doesn't have). This
@@ -217,11 +217,11 @@ func TestBuildADChangePasswordModifyCarriesDeleteThenAdd(t *testing.T) {
 	}
 }
 
-// TestClassifyLDAPResultErrInsufficientAccessRights proves the C1 addition:
-// AD result code 50 (Insufficient Access Rights) -- e.g. because the
-// account isn't even allowed the self-service delete+add -- is an
-// authoritative rejection (Invalid), not the previous Unreachable
-// fallthrough, since the server did answer and did refuse the request.
+// TestClassifyLDAPResultErrInsufficientAccessRights proves that AD result
+// code 50 (Insufficient Access Rights) -- e.g. because the account isn't
+// even allowed the self-service delete+add -- is an authoritative rejection
+// (Invalid), not Unreachable, since the server did answer and did refuse the
+// request.
 func TestClassifyLDAPResultErrInsufficientAccessRights(t *testing.T) {
 	err := ldap.NewError(ldap.LDAPResultInsufficientAccessRights, errors.New("boom"))
 
