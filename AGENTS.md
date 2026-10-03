@@ -72,3 +72,12 @@ Follow the logging rules in `CLAUDE.md`. In short:
 - The vault API comes from `github.com/Sneakers-PAM/sneakers-vault` (`gen/go/sneakers/vault/v1`).
 - Adding a target protocol means a new adapter registered in `internal/adapter`; the worker doesn't
   change.
+- `go.mod` holds tagged releases only: no `replace` directive, and no pseudo-version (`@main`,
+  `@<sha>`) of a `github.com/Bugs5382/*` or `github.com/Sneakers-PAM/*` module; the
+  `proto-sync / check` job fails on either. To compile and test against a local package checkout,
+  use a git-ignored `go.work` beside `go.mod` (`go work init . ../go-<pkg>`, which writes
+  `use . ../go-<pkg>`); `go.work` and `go.work.sum` are in `.gitignore`. For local callee protos,
+  point `SNEAKERS_VAULT_PROTO_DIR` at a local `proto/` directory when running
+  `scripts/proto-generate.sh`, rather than editing a pin in `proto-refs.env`. `SNEAKERS_VAULT_REF`
+  is also the sneakers-vault commit `internal/workloadauth/` is copied from; `SNEAKERS_VAULT_DIR`
+  points `scripts/workloadauth-check.sh` at a local sneakers-vault checkout instead.
