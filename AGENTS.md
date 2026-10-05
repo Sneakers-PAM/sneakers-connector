@@ -27,7 +27,8 @@ never logs credential material or the worker token.
   canonical package in sneakers-vault at `SNEAKERS_VAULT_REF`. Never edit it here: change it in the
   vault, bump the ref and copy it again. `scripts/workloadauth-check.sh` (run in CI) compares them.
 - `internal/grpcsvc/` - the `sneakers.common.v1.HealthService` handler.
-- `internal/config/`, `internal/server/` - the environment config and the gRPC server bootstrap.
+- `internal/config/`, `internal/server/` - the environment config and the gRPC server bootstrap,
+  with the health service and readiness checks from `github.com/Bugs5382/go-buildinfo`.
 - `proto/` - the health API; `gen/go/` - the generated Go (committed, checked current in CI),
   including the vault client stubs in `gen/go/thirdparty/vault/v1`, generated from the vault
   protos pinned in `proto-refs.env` (see docs/api.md, "Calling other services").

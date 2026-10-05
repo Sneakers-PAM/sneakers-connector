@@ -9,11 +9,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Bugs5382/go-buildinfo/health"
 	log "github.com/Bugs5382/go-log"
 	otel "github.com/Bugs5382/go-otel"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/config"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/grpcsvc"
-	"github.com/Sneakers-PAM/sneakers-connector/internal/health"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/server"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/tokensource"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/vaultclient"
@@ -68,7 +68,10 @@ func main() {
 	// emits an audit event.
 	// Readiness follows the vault: every job the worker runs is claimed from
 	// it and reported back to it. Liveness never asks.
-	checker := health.New(svcLog, health.Vault(vc.Conn()))
+	checker, err := server.NewChecker(svcLog, []health.Dependency{server.Vault(vc.Conn())})
+	if err != nil {
+		logger.Fatal().Err(err).Msg("health checker")
+	}
 	if err := server.RunWithHealth(ctx, cfg.GRPCPort, svcLog, checker, func(gs *grpc.Server) {
 		grpcsvc.Register(gs)
 	}); err != nil {

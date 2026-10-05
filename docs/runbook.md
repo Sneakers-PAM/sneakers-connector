@@ -39,8 +39,9 @@ There's no database dependency: `DATABASE_DSN` is read but nothing uses it, and 
 no message broker. A vault that is up but itself not ready (its database down) also makes the
 connector not ready, since neither can work until it's back. Readiness answers carry the
 `sneakers-health` header with each dependency's state (see [api.md](api.md)); each change of state
-logs one line, `health: dependency down` (warn) or `health: dependency recovered` (info), with the
-dependency's name and error class, never the address or the error text.
+logs one line, `dependency check failing` (warn) or `dependency recovered` (info), with the
+dependency's name, the states it moved between and the error class, never the address or the
+error text.
 
 Readiness doesn't check that the vault accepts the worker's token; the warnings in the log do
 (`claim due heartbeats`, `claim due rotations`).
@@ -50,7 +51,7 @@ chart. Until it does, both probes ask readiness, and a vault outage would restar
 
 To see which build is running, ask for the response headers (`grpcurl -v ... grpc.health.v1.Health/Check`):
 the answer carries `sneakers-version` and `sneakers-commit`. The image build stamps them from its
-`VERSION` and `COMMIT` build arguments:
+`VERSION` and `COMMIT` build arguments, into go-buildinfo's `Version` and `Commit`:
 
 ```bash
 docker build --build-arg VERSION=v0.1.0 --build-arg COMMIT="$(git rev-parse HEAD)" .

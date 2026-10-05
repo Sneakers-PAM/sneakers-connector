@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/Bugs5382/go-log"
-	"github.com/Sneakers-PAM/sneakers-connector/internal/health"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	grpchealth "google.golang.org/grpc/health"
@@ -50,8 +48,7 @@ func TestHealth_VaultStoppedMidTest(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 
-	clk := &testClock{t: time.Now()}
-	checker := health.New(log.Nop(), health.Vault(conn)).WithClock(clk.now)
+	checker := newTestChecker(t, Vault(conn))
 	c := healthClient(t, checker)
 
 	if st, _ := check(t, c, ""); st != healthpb.HealthCheckResponse_SERVING {
@@ -59,13 +56,13 @@ func TestHealth_VaultStoppedMidTest(t *testing.T) {
 	}
 
 	vaultHealth.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
-	clk.advance(health.CacheTTL)
+	time.Sleep(testTTL)
 	if st, _ := check(t, c, ""); st != healthpb.HealthCheckResponse_NOT_SERVING {
 		t.Fatalf("readiness with the vault not serving = %v, want NOT_SERVING", st)
 	}
 
 	stop()
-	clk.advance(health.CacheTTL)
+	time.Sleep(testTTL)
 	if st, _ := check(t, c, ""); st != healthpb.HealthCheckResponse_NOT_SERVING {
 		t.Fatalf("readiness with the vault stopped = %v, want NOT_SERVING", st)
 	}
@@ -77,7 +74,6 @@ func TestHealth_VaultStoppedMidTest(t *testing.T) {
 	t.Cleanup(stop)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		clk.advance(health.CacheTTL)
 		st, _ := check(t, c, "")
 		if st == healthpb.HealthCheckResponse_SERVING {
 			break
@@ -85,6 +81,6 @@ func TestHealth_VaultStoppedMidTest(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatalf("readiness never recovered after the vault came back: %v", st)
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(testTTL)
 	}
 }
