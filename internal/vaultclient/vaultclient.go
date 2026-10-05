@@ -6,15 +6,18 @@
 package vaultclient
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
+	"github.com/Sneakers-PAM/sneakers-connector/internal/buildinfo"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/server"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/tokensource"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/workloadauth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 // defaultAddr is the vault's address in a local development setup.
@@ -44,7 +47,9 @@ type Client struct {
 // handler so outbound calls are traced. Every call carries the workload
 // token from WORKLOAD_TOKEN_FILE (or CONNECTOR_TOKEN_FILE) as
 // "authorization: Bearer <token>", re-read on each call. With neither set no
-// token is sent, which only a vault with authentication off accepts.
+// token is sent, which only a vault with authentication off accepts. Every
+// call also carries the connector's build as MDVersion and MDCommit, which the
+// vault records for diagnostics.
 func Dial() (*Client, error) { return dial(os.Getenv) }
 
 func dial(getenv func(string) string) (*Client, error) {
@@ -52,7 +57,12 @@ func dial(getenv func(string) string) (*Client, error) {
 	if addr == "" {
 		addr = defaultAddr
 	}
-	opts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials()), server.ClientStatsHandler()}
+	version, commit := buildinfo.Info()
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()), server.ClientStatsHandler(),
+		grpc.WithChainUnaryInterceptor(buildUnaryInterceptor(version, commit)),
+		grpc.WithChainStreamInterceptor(buildStreamInterceptor(version, commit)),
+	}
 	tokenOpt, ok, err := workloadauth.DialOptionFromEnv(tokenFileAlias(getenv))
 	if err != nil {
 		return nil, fmt.Errorf("vault workload token: %w", err)
@@ -84,3 +94,25 @@ func (c *Client) Close() error { return c.conn.Close() }
 
 // Conn is the connection to the vault, for its health check (readiness).
 func (c *Client) Conn() grpc.ClientConnInterface { return c.conn }
+
+// Metadata keys that carry the connector's build on every call to the vault.
+const (
+	MDVersion = "sneakers-version"
+	MDCommit  = "sneakers-commit"
+)
+
+func withBuild(ctx context.Context, version, commit string) context.Context {
+	return metadata.AppendToOutgoingContext(ctx, MDVersion, version, MDCommit, commit)
+}
+
+func buildUnaryInterceptor(version, commit string) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		return invoker(withBuild(ctx, version, commit), method, req, reply, cc, opts...)
+	}
+}
+
+func buildStreamInterceptor(version, commit string) grpc.StreamClientInterceptor {
+	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		return streamer(withBuild(ctx, version, commit), desc, cc, method, opts...)
+	}
+}
