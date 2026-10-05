@@ -27,8 +27,26 @@ Use the standard gRPC health check:
 grpcurl -plaintext localhost:9090 grpc.health.v1.Health/Check
 ```
 
-The health check says the process is up. It doesn't say the vault is reachable or the token is
-accepted; the warnings in the log do.
+That's readiness: it answers `NOT_SERVING` while the vault is down. Liveness is service
+`liveness` (`grpcurl -plaintext -d '{"service":"liveness"}' localhost:9090 grpc.health.v1.Health/Check`)
+and only says the process is up.
+
+| Dependency | Required | Why |
+|---|---|---|
+| vault | yes | Every job the worker runs is claimed from the vault and reported back to it; without the vault the connector does nothing. Checked through the vault's own readiness on the worker's connection. |
+
+There's no database dependency: `DATABASE_DSN` is read but nothing uses it, and the connector uses
+no message broker. A vault that is up but itself not ready (its database down) also makes the
+connector not ready, since neither can work until it's back. Readiness answers carry the
+`sneakers-health` header with each dependency's state (see [api.md](api.md)); each change of state
+logs one line, `health: dependency down` (warn) or `health: dependency recovered` (info), with the
+dependency's name and error class, never the address or the error text.
+
+Readiness doesn't check that the vault accepts the worker's token; the warnings in the log do
+(`claim due heartbeats`, `claim due rotations`).
+
+The kubelet's liveness probe has to ask for service `liveness`; that's set in the sneakers-release
+chart. Until it does, both probes ask readiness, and a vault outage would restart the pod.
 
 To see which build is running, ask for the response headers (`grpcurl -v ... grpc.health.v1.Health/Check`):
 the answer carries `sneakers-version` and `sneakers-commit`. The image build stamps them from its

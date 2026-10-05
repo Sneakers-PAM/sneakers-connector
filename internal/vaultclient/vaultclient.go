@@ -81,3 +81,6 @@ func tokenFileAlias(getenv func(string) string) func(string) string {
 
 // Close releases the underlying gRPC connection.
 func (c *Client) Close() error { return c.conn.Close() }
+
+// Conn is the connection to the vault, for its health check (readiness).
+func (c *Client) Conn() grpc.ClientConnInterface { return c.conn }

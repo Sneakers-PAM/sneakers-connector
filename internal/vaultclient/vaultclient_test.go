@@ -14,6 +14,8 @@ import (
 
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -146,5 +148,27 @@ func TestDialRefusesUnreadableTokenFile(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing")
 	if _, err := dial(envOf(map[string]string{EnvWorkloadTokenFile: missing})); err == nil {
 		t.Fatal("dial with a missing token file succeeded, want an error")
+	}
+}
+
+func TestConnReachesTheVault(t *testing.T) {
+	gs := grpc.NewServer()
+	healthpb.RegisterHealthServer(gs, health.NewServer())
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() { _ = gs.Serve(ln) }()
+	t.Cleanup(gs.Stop)
+	c, err := dial(envOf(map[string]string{"VAULT_ADDR": ln.Addr().String()}))
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	resp, err := healthpb.NewHealthClient(c.Conn()).Check(ctx, &healthpb.HealthCheckRequest{})
+	if err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+		t.Fatalf("health over Conn = %v, %v; want SERVING", resp, err)
 	}
 }

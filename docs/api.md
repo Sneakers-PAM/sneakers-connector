@@ -7,14 +7,33 @@ it serves only health checks.
 
 On `GRPC_PORT`:
 
-- `grpc.health.v1.Health`: the standard gRPC health service, for probes.
+- `grpc.health.v1.Health`: the standard gRPC health service, for probes:
+  - service `""` is readiness. It answers `NOT_SERVING` while a required dependency is down and
+    `SERVING` otherwise, and recovers on its own when the dependency answers again.
+  - service `liveness` always answers `SERVING` and checks no dependency, so an outage never
+    restarts the pod.
+  - any other service answers `NOT_FOUND`; `Watch` answers `UNIMPLEMENTED` (poll `Check`).
 - `sneakers.common.v1.HealthService/Check`: answers `status: "SERVING"`. Defined in
   [proto/sneakers/common/v1/health.proto](../proto/sneakers/common/v1/health.proto).
 - gRPC server reflection.
 
-A `grpc.health.v1.Health/Check` answer answer carries the build in its response headers: `sneakers-version` (the image
+A `grpc.health.v1.Health/Check` answer carries the build in its response headers: `sneakers-version` (the image
 tag, `dev` when unstamped) and `sneakers-commit` (the source commit, `unknown` when neither the
 build nor Go's VCS stamp knows it). The gateway's diagnostics read them.
+
+A readiness answer (service `""`) also carries `sneakers-health`, the dependency report as compact
+JSON:
+
+```json
+{"status":"down","dependencies":[{"name":"vault","state":"down","required":true,"error":"unavailable","checkedAt":"2026-10-05T12:00:05Z"}]}
+```
+
+`status` and each `state` are `ok`, `degraded` (an optional dependency is failing) or `down` (a
+required one is). `error` is a fixed class, never the error itself: `timeout`, `refused`,
+`unavailable`, `unauthenticated` or `error`. Each dependency is checked with a one-second timeout,
+and the result answers for five seconds, so frequent probes don't load the vault.
+
+`sneakers.common.v1.HealthService/Check` is unchanged and always answers `SERVING`.
 
 ## What it calls on the vault
 

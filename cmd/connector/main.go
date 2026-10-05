@@ -13,6 +13,7 @@ import (
 	otel "github.com/Bugs5382/go-otel"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/config"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/grpcsvc"
+	"github.com/Sneakers-PAM/sneakers-connector/internal/health"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/server"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/tokensource"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/vaultclient"
@@ -65,7 +66,10 @@ func main() {
 	// TODO: when the connector gains mutating RPCs of its own, wire an audit
 	// emitter here and pass it to the grpcsvc constructors, so every mutation
 	// emits an audit event.
-	if err := server.RunWithLogger(ctx, cfg.GRPCPort, svcLog, func(gs *grpc.Server) {
+	// Readiness follows the vault: every job the worker runs is claimed from
+	// it and reported back to it. Liveness never asks.
+	checker := health.New(svcLog, health.Vault(vc.Conn()))
+	if err := server.RunWithHealth(ctx, cfg.GRPCPort, svcLog, checker, func(gs *grpc.Server) {
 		grpcsvc.Register(gs)
 	}); err != nil {
 		logger.Fatal().Err(err).Msg("server exited")
