@@ -8,13 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/Bugs5382/go-buildinfo/health"
 	log "github.com/Bugs5382/go-log"
-	"github.com/Sneakers-PAM/sneakers-connector/internal/health"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -23,16 +22,17 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type testClock struct {
-	mu sync.Mutex
-	t  time.Time
-}
+// testTTL is the cache window the tests run with; waiting it out lets the next
+// check run again.
+const testTTL = time.Second
 
-func (c *testClock) now() time.Time { c.mu.Lock(); defer c.mu.Unlock(); return c.t }
-func (c *testClock) advance(d time.Duration) {
-	c.mu.Lock()
-	c.t = c.t.Add(d)
-	c.mu.Unlock()
+func newTestChecker(t *testing.T, deps ...health.Dependency) *health.Checker {
+	t.Helper()
+	c, err := NewChecker(log.Nop(), deps, health.WithTTL(testTTL))
+	if err != nil {
+		t.Fatalf("checker: %v", err)
+	}
+	return c
 }
 
 // healthClient runs a server with checker and returns a health client on it.
@@ -65,20 +65,19 @@ func check(t *testing.T, c healthpb.HealthClient, service string) (healthpb.Heal
 
 func TestHealth_ReadinessFollowsVaultLivenessDoesNot(t *testing.T) {
 	var down atomic.Bool
-	clk := &testClock{t: time.Now()}
-	checker := health.New(log.Nop(), health.Dep{Name: "vault", Required: true, Check: func(context.Context) error {
+	checker := newTestChecker(t, health.Dependency{Name: "vault", Required: true, Check: func(context.Context) error {
 		if down.Load() {
 			return errors.New("dial tcp vault.example.test:9091: secret-token-text")
 		}
 		return nil
-	}}).WithClock(clk.now)
+	}})
 	c := healthClient(t, checker)
 
 	if st, _ := check(t, c, ""); st != healthpb.HealthCheckResponse_SERVING {
 		t.Fatalf("readiness while healthy = %v", st)
 	}
 	down.Store(true)
-	clk.advance(health.CacheTTL)
+	time.Sleep(testTTL)
 	st, md := check(t, c, "")
 	if st != healthpb.HealthCheckResponse_NOT_SERVING {
 		t.Fatalf("readiness while the vault is down = %v, want NOT_SERVING", st)
@@ -111,37 +110,37 @@ func TestHealth_ReadinessFollowsVaultLivenessDoesNot(t *testing.T) {
 			t.Fatalf("health body carries %q: %s", bad, raw[0])
 		}
 	}
-	if v := md.Get(HeaderVersion); len(v) != 1 {
+	if v := md.Get("sneakers-version"); len(v) != 1 {
 		t.Fatalf("the version header is gone: %v", md)
 	}
 
 	down.Store(false)
-	clk.advance(health.CacheTTL)
+	time.Sleep(testTTL)
 	if st, _ := check(t, c, ""); st != healthpb.HealthCheckResponse_SERVING {
 		t.Fatalf("readiness after recovery = %v, want SERVING", st)
 	}
 }
 
 func TestHealth_LivenessCarriesNoHealthBody(t *testing.T) {
-	c := healthClient(t, health.New(log.Nop()))
+	c := healthClient(t, newTestChecker(t))
 	if _, md := check(t, c, "liveness"); len(md.Get(HeaderHealth)) != 0 {
 		t.Fatalf("liveness carried %v", md.Get(HeaderHealth))
 	}
 }
 
 func TestHealth_UnknownServiceAndWatch(t *testing.T) {
-	c := healthClient(t, health.New(log.Nop()))
+	c := healthClient(t, newTestChecker(t))
 	check(t, c, "") // wait for the server
 	_, err := c.Check(context.Background(), &healthpb.HealthCheckRequest{Service: "nope"})
 	if status.Code(err) != codes.NotFound {
 		t.Fatalf("unknown service: %v, want NotFound", err)
 	}
 	w, err := c.Watch(context.Background(), &healthpb.HealthCheckRequest{})
-	if err == nil {
-		_, err = w.Recv()
+	if err != nil {
+		t.Fatalf("watch: %v", err)
 	}
-	if status.Code(err) != codes.Unimplemented {
-		t.Fatalf("watch: %v, want Unimplemented", err)
+	if resp, err := w.Recv(); err != nil || resp.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+		t.Fatalf("watch: %v %v, want SERVING", resp.GetStatus(), err)
 	}
 }
 
