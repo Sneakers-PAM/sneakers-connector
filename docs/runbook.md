@@ -30,6 +30,14 @@ grpcurl -plaintext localhost:9090 grpc.health.v1.Health/Check
 The health check says the process is up. It doesn't say the vault is reachable or the token is
 accepted; the warnings in the log do.
 
+To see which build is running, ask for the response headers (`grpcurl -v ... grpc.health.v1.Health/Check`):
+the answer carries `sneakers-version` and `sneakers-commit`. The image build stamps them from its
+`VERSION` and `COMMIT` build arguments:
+
+```bash
+docker build --build-arg VERSION=v0.1.0 --build-arg COMMIT="$(git rev-parse HEAD)" .
+```
+
 ## Each poll
 
 A poll runs the due heartbeats, then the due rotations, one job at a time. Each job has its own

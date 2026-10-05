@@ -12,6 +12,10 @@ On `GRPC_PORT`:
   [proto/sneakers/common/v1/health.proto](../proto/sneakers/common/v1/health.proto).
 - gRPC server reflection.
 
+A `grpc.health.v1.Health/Check` answer answer carries the build in its response headers: `sneakers-version` (the image
+tag, `dev` when unstamped) and `sneakers-commit` (the source commit, `unknown` when neither the
+build nor Go's VCS stamp knows it). The gateway's diagnostics read them.
+
 ## What it calls on the vault
 
 All six calls are on `sneakers.vault.v1.VaultService` (the stubs are generated here, see
