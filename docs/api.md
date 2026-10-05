@@ -40,7 +40,11 @@ and the result answers for five seconds, so frequent probes don't load the vault
 All six calls are on `sneakers.vault.v1.VaultService` (the stubs are generated here, see
 [Calling other services](#calling-other-services)). Each carries the workload token as
 `authorization: Bearer <token>` metadata and the worker-identity token in `identity.token` (see
-[configuration.md](configuration.md#vault-identity-token)).
+[configuration.md](configuration.md#vault-identity-token)). Each also carries the connector's
+build as metadata: `sneakers-version` (the stamped version, `dev` when unstamped) and
+`sneakers-commit` (the stamped commit, else the VCS revision, else `unknown`). The vault records
+them with the connector's last contact, so the product's diagnostics show every connector's build
+without calling the connector.
 
 | Call | When | What the connector does with it |
 |---|---|---|
