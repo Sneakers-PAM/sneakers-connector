@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"os"
 
+	buildinfo "github.com/Bugs5382/go-buildinfo"
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
-	"github.com/Sneakers-PAM/sneakers-connector/internal/buildinfo"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/server"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/tokensource"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/workloadauth"
@@ -57,7 +57,8 @@ func dial(getenv func(string) string) (*Client, error) {
 	if addr == "" {
 		addr = defaultAddr
 	}
-	version, commit := buildinfo.Info()
+	bi := buildinfo.Get()
+	version, commit := bi.Version, bi.Commit
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()), server.ClientStatsHandler(),
 		grpc.WithChainUnaryInterceptor(buildUnaryInterceptor(version, commit)),
