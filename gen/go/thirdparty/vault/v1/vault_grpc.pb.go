@@ -98,6 +98,7 @@ const (
 	VaultService_ClaimDueRotations_FullMethodName               = "/sneakers.vault.v1.VaultService/ClaimDueRotations"
 	VaultService_RevealForRotation_FullMethodName               = "/sneakers.vault.v1.VaultService/RevealForRotation"
 	VaultService_ReportRotation_FullMethodName                  = "/sneakers.vault.v1.VaultService/ReportRotation"
+	VaultService_ListConnectors_FullMethodName                  = "/sneakers.vault.v1.VaultService/ListConnectors"
 	VaultService_ListPasswordPolicies_FullMethodName            = "/sneakers.vault.v1.VaultService/ListPasswordPolicies"
 	VaultService_SavePasswordPolicy_FullMethodName              = "/sneakers.vault.v1.VaultService/SavePasswordPolicy"
 	VaultService_DeletePasswordPolicy_FullMethodName            = "/sneakers.vault.v1.VaultService/DeletePasswordPolicy"
@@ -106,6 +107,7 @@ const (
 	VaultService_SeedBuiltins_FullMethodName                    = "/sneakers.vault.v1.VaultService/SeedBuiltins"
 	VaultService_GenerateKeyPair_FullMethodName                 = "/sneakers.vault.v1.VaultService/GenerateKeyPair"
 	VaultService_RotateKek_FullMethodName                       = "/sneakers.vault.v1.VaultService/RotateKek"
+	VaultService_SealForImport_FullMethodName                   = "/sneakers.vault.v1.VaultService/SealForImport"
 	VaultService_PrepareSecretUse_FullMethodName                = "/sneakers.vault.v1.VaultService/PrepareSecretUse"
 	VaultService_GetSecretUse_FullMethodName                    = "/sneakers.vault.v1.VaultService/GetSecretUse"
 	VaultService_ListPendingSecretUses_FullMethodName           = "/sneakers.vault.v1.VaultService/ListPendingSecretUses"
@@ -225,6 +227,10 @@ type VaultServiceClient interface {
 	ClaimDueRotations(ctx context.Context, in *ClaimDueRotationsRequest, opts ...grpc.CallOption) (*ClaimDueRotationsResponse, error)
 	RevealForRotation(ctx context.Context, in *RevealForRotationRequest, opts ...grpc.CallOption) (*RevealForRotationResponse, error)
 	ReportRotation(ctx context.Context, in *ReportRotationRequest, opts ...grpc.CallOption) (*ReportRotationResponse, error)
+	// Connector builds: each connector's build (from the sneakers-version and
+	// sneakers-commit metadata of its pull calls) and its last contact, for the
+	// gateway's diagnostics. Caller gateway only, as itself.
+	ListConnectors(ctx context.Context, in *ListConnectorsRequest, opts ...grpc.CallOption) (*ListConnectorsResponse, error)
 	// Instance configuration: password policies + security settings
 	ListPasswordPolicies(ctx context.Context, in *ListPasswordPoliciesRequest, opts ...grpc.CallOption) (*ListPasswordPoliciesResponse, error)
 	SavePasswordPolicy(ctx context.Context, in *SavePasswordPolicyRequest, opts ...grpc.CallOption) (*SavePasswordPolicyResponse, error)
@@ -244,6 +250,8 @@ type VaultServiceClient interface {
 	// Rotates the active working-KEK: mints a new KEK, activates it, and
 	// sweeps existing records to re-wrap their DEKs under it.
 	RotateKek(ctx context.Context, in *RotateKekRequest, opts ...grpc.CallOption) (*RotateKekResponse, error)
+	// Seals field sets for an import without storing them (migrate caller only).
+	SealForImport(ctx context.Context, in *SealForImportRequest, opts ...grpc.CallOption) (*SealForImportResponse, error)
 	PrepareSecretUse(ctx context.Context, in *PrepareSecretUseRequest, opts ...grpc.CallOption) (*PrepareSecretUseResponse, error)
 	GetSecretUse(ctx context.Context, in *GetSecretUseRequest, opts ...grpc.CallOption) (*GetSecretUseResponse, error)
 	ListPendingSecretUses(ctx context.Context, in *ListPendingSecretUsesRequest, opts ...grpc.CallOption) (*ListPendingSecretUsesResponse, error)
@@ -1027,6 +1035,16 @@ func (c *vaultServiceClient) ReportRotation(ctx context.Context, in *ReportRotat
 	return out, nil
 }
 
+func (c *vaultServiceClient) ListConnectors(ctx context.Context, in *ListConnectorsRequest, opts ...grpc.CallOption) (*ListConnectorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListConnectorsResponse)
+	err := c.cc.Invoke(ctx, VaultService_ListConnectors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *vaultServiceClient) ListPasswordPolicies(ctx context.Context, in *ListPasswordPoliciesRequest, opts ...grpc.CallOption) (*ListPasswordPoliciesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListPasswordPoliciesResponse)
@@ -1101,6 +1119,16 @@ func (c *vaultServiceClient) RotateKek(ctx context.Context, in *RotateKekRequest
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RotateKekResponse)
 	err := c.cc.Invoke(ctx, VaultService_RotateKek_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *vaultServiceClient) SealForImport(ctx context.Context, in *SealForImportRequest, opts ...grpc.CallOption) (*SealForImportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SealForImportResponse)
+	err := c.cc.Invoke(ctx, VaultService_SealForImport_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1341,6 +1369,10 @@ type VaultServiceServer interface {
 	ClaimDueRotations(context.Context, *ClaimDueRotationsRequest) (*ClaimDueRotationsResponse, error)
 	RevealForRotation(context.Context, *RevealForRotationRequest) (*RevealForRotationResponse, error)
 	ReportRotation(context.Context, *ReportRotationRequest) (*ReportRotationResponse, error)
+	// Connector builds: each connector's build (from the sneakers-version and
+	// sneakers-commit metadata of its pull calls) and its last contact, for the
+	// gateway's diagnostics. Caller gateway only, as itself.
+	ListConnectors(context.Context, *ListConnectorsRequest) (*ListConnectorsResponse, error)
 	// Instance configuration: password policies + security settings
 	ListPasswordPolicies(context.Context, *ListPasswordPoliciesRequest) (*ListPasswordPoliciesResponse, error)
 	SavePasswordPolicy(context.Context, *SavePasswordPolicyRequest) (*SavePasswordPolicyResponse, error)
@@ -1360,6 +1392,8 @@ type VaultServiceServer interface {
 	// Rotates the active working-KEK: mints a new KEK, activates it, and
 	// sweeps existing records to re-wrap their DEKs under it.
 	RotateKek(context.Context, *RotateKekRequest) (*RotateKekResponse, error)
+	// Seals field sets for an import without storing them (migrate caller only).
+	SealForImport(context.Context, *SealForImportRequest) (*SealForImportResponse, error)
 	PrepareSecretUse(context.Context, *PrepareSecretUseRequest) (*PrepareSecretUseResponse, error)
 	GetSecretUse(context.Context, *GetSecretUseRequest) (*GetSecretUseResponse, error)
 	ListPendingSecretUses(context.Context, *ListPendingSecretUsesRequest) (*ListPendingSecretUsesResponse, error)
@@ -1611,6 +1645,9 @@ func (UnimplementedVaultServiceServer) RevealForRotation(context.Context, *Revea
 func (UnimplementedVaultServiceServer) ReportRotation(context.Context, *ReportRotationRequest) (*ReportRotationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReportRotation not implemented")
 }
+func (UnimplementedVaultServiceServer) ListConnectors(context.Context, *ListConnectorsRequest) (*ListConnectorsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListConnectors not implemented")
+}
 func (UnimplementedVaultServiceServer) ListPasswordPolicies(context.Context, *ListPasswordPoliciesRequest) (*ListPasswordPoliciesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPasswordPolicies not implemented")
 }
@@ -1634,6 +1671,9 @@ func (UnimplementedVaultServiceServer) GenerateKeyPair(context.Context, *Generat
 }
 func (UnimplementedVaultServiceServer) RotateKek(context.Context, *RotateKekRequest) (*RotateKekResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RotateKek not implemented")
+}
+func (UnimplementedVaultServiceServer) SealForImport(context.Context, *SealForImportRequest) (*SealForImportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SealForImport not implemented")
 }
 func (UnimplementedVaultServiceServer) PrepareSecretUse(context.Context, *PrepareSecretUseRequest) (*PrepareSecretUseResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PrepareSecretUse not implemented")
@@ -3063,6 +3103,24 @@ func _VaultService_ReportRotation_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _VaultService_ListConnectors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListConnectorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VaultServiceServer).ListConnectors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VaultService_ListConnectors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VaultServiceServer).ListConnectors(ctx, req.(*ListConnectorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _VaultService_ListPasswordPolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListPasswordPoliciesRequest)
 	if err := dec(in); err != nil {
@@ -3203,6 +3261,24 @@ func _VaultService_RotateKek_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(VaultServiceServer).RotateKek(ctx, req.(*RotateKekRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _VaultService_SealForImport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SealForImportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VaultServiceServer).SealForImport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: VaultService_SealForImport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VaultServiceServer).SealForImport(ctx, req.(*SealForImportRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -3753,6 +3829,10 @@ var VaultService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _VaultService_ReportRotation_Handler,
 		},
 		{
+			MethodName: "ListConnectors",
+			Handler:    _VaultService_ListConnectors_Handler,
+		},
+		{
 			MethodName: "ListPasswordPolicies",
 			Handler:    _VaultService_ListPasswordPolicies_Handler,
 		},
@@ -3783,6 +3863,10 @@ var VaultService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RotateKek",
 			Handler:    _VaultService_RotateKek_Handler,
+		},
+		{
+			MethodName: "SealForImport",
+			Handler:    _VaultService_SealForImport_Handler,
 		},
 		{
 			MethodName: "PrepareSecretUse",
