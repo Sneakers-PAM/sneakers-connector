@@ -98,6 +98,7 @@ the adapter is given:
 | `target.domain` | domain |
 | `target.realm` | Kerberos realm |
 | `target.ssh_host_keys` | the SSH host-key pins (authorized_keys lines); empty means not pinned |
+| `logon` (`format`, `netbios`, `upn_suffix`) | the AD account's logon format, from the secret; unset means the default logon name |
 
 | Protocol | Heartbeat | Rotation |
 |---|---|---|
@@ -118,6 +119,18 @@ the adapter is given:
   the account by `sAMAccountName` under the matching base (`dc=ad,dc=example,dc=org`), and changes
   the password with AD's self-service change: one modify that deletes the old `unicodePwd` and adds
   the new one. AD only allows that over an encrypted connection, so use LDAPS.
+
+The AD logon format on the job (the Active Directory type's `logonFormat`, `netbios` and
+`upnSuffix` fields, sent as `logon`) changes the name an AD bind uses, on heartbeat and on
+rotation alike:
+
+- `NETBIOS` with a NetBIOS domain: binds as `<netbios>\<username>`;
+- `UPN` with a UPN suffix: binds as `<username>@<upn_suffix>`; without one, as
+  `<username>@<domain>`, the default;
+- unset, or `NETBIOS` without a NetBIOS domain: the default above.
+
+The account lookup still searches `sAMAccountName` for the bare username, and an lldap-style
+domain ignores the format.
 
 After a successful AD bind, a heartbeat also reads `objectSid` and `adminCount` and reports
 `builtin_administrator` (the RID is 500) and `admin_count` (`adminCount` is 1), so the vault knows

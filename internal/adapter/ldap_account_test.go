@@ -23,14 +23,18 @@ type fakeLDAP struct {
 	searchErr error
 	entry     *ldap.Entry
 
+	binds          []string
 	searches       []*ldap.SearchRequest
 	modifies       []*ldap.ModifyRequest
 	passwordModify int
 }
 
-func (f *fakeLDAP) Bind(string, string) error { return f.bindErr }
-func (f *fakeLDAP) SetTimeout(time.Duration)  {}
-func (f *fakeLDAP) Close() error              { return nil }
+func (f *fakeLDAP) Bind(username, _ string) error {
+	f.binds = append(f.binds, username)
+	return f.bindErr
+}
+func (f *fakeLDAP) SetTimeout(time.Duration) {}
+func (f *fakeLDAP) Close() error             { return nil }
 
 func (f *fakeLDAP) Search(req *ldap.SearchRequest) (*ldap.SearchResult, error) {
 	f.searches = append(f.searches, req)
