@@ -141,6 +141,7 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 		Domain:   job.GetTarget().GetDomain(),
 		Realm:    job.GetTarget().GetRealm(),
 		HostKeys: job.GetTarget().GetSshHostKeys(),
+		Logon:    logonFormat(job.GetLogon()),
 	}
 	cred := adapter.Cred{
 		Username:   reveal.GetUsername(),
@@ -185,6 +186,12 @@ func reportHeartbeat(ctx context.Context, lg log.Logger, vc vaultv1.VaultService
 		logger := lg.Ctx(ctx).With(log.F("secret_id", job.GetSecretId()))
 		logger.Warn("report heartbeat", log.F("error", err.Error()))
 	}
+}
+
+// logonFormat converts a job's AD logon format for the adapter. Unset stays
+// zero, which keeps the adapter's default logon name.
+func logonFormat(l *vaultv1.LogonFormat) adapter.LogonFormat {
+	return adapter.LogonFormat{Format: l.GetFormat(), Netbios: l.GetNetbios(), UPNSuffix: l.GetUpnSuffix()}
 }
 
 // toHeartbeatResult maps an adapter validation outcome onto the wire
@@ -282,6 +289,7 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 		Domain:   job.GetTarget().GetDomain(),
 		Realm:    job.GetTarget().GetRealm(),
 		HostKeys: job.GetTarget().GetSshHostKeys(),
+		Logon:    logonFormat(job.GetLogon()),
 	}
 	current := adapter.Cred{
 		Username: reveal.GetUsername(),

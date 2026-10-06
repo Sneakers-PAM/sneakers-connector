@@ -68,6 +68,10 @@ func init() {
 //     ou=people with a uid attribute.
 //   - any other non-empty Domain, e.g. "corp.example.org": bind as the UPN
 //     "username@domain", the form Active Directory expects.
+//
+// Outside the lldap case, the secret's AD logon format (Conn.Logon) comes
+// first: NETBIOS binds as "NETBIOS\username", and UPN as
+// "username@<UPN suffix>" (or "username@domain" without a suffix).
 func (a *ldapAdapter) Validate(ctx context.Context, c Conn, cred Cred) (Result, string) {
 	result, detail, _ := a.ValidateAccount(ctx, c, cred)
 	return result, detail
@@ -116,10 +120,14 @@ func (a *ldapAdapter) ValidateAccount(ctx context.Context, c Conn, cred Cred) (R
 // comment for the AD-vs-lldap rationale.
 func bindIdentifier(c Conn, username string) string {
 	switch {
-	case c.Domain == "":
-		return username
 	case strings.Contains(c.Domain, "="):
 		return fmt.Sprintf("uid=%s,ou=people,%s", username, c.Domain)
+	case c.Logon.Format == LogonNetbios && c.Logon.Netbios != "":
+		return c.Logon.Netbios + `\` + username
+	case c.Logon.Format == LogonUPN && c.Logon.UPNSuffix != "":
+		return username + "@" + c.Logon.UPNSuffix
+	case c.Domain == "":
+		return username
 	default:
 		return fmt.Sprintf("%s@%s", username, c.Domain)
 	}

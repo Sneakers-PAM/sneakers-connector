@@ -79,6 +79,26 @@ type Conn struct {
 	// form. The ssh adapter connects only to a host presenting one of them;
 	// empty means not pinned, and it refuses to connect.
 	HostKeys []string
+	// Logon is the AD account's logon format, from the secret. Zero means
+	// the adapter's default logon name.
+	Logon LogonFormat
+}
+
+// Values of LogonFormat.Format, as the vault's Active Directory type
+// stores them.
+const (
+	LogonNetbios = "NETBIOS"
+	LogonUPN     = "UPN"
+)
+
+// LogonFormat is how an AD account presents its logon name: LogonNetbios
+// binds as Netbios\username, LogonUPN as username@UPNSuffix (or
+// username@Domain when UPNSuffix is empty). Any other Format, or a NETBIOS
+// format without Netbios, keeps the default.
+type LogonFormat struct {
+	Format    string
+	Netbios   string
+	UPNSuffix string
 }
 
 // Adapter validates a credential against a target by binding as the account,
