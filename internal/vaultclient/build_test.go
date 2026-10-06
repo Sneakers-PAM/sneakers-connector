@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	buildinfo "github.com/Bugs5382/go-buildinfo"
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
-	"github.com/Sneakers-PAM/sneakers-connector/internal/buildinfo"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
