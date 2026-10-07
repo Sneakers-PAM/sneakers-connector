@@ -23,9 +23,8 @@ never logs credential material or the worker token.
   client).
 - `internal/tokensource/` - the worker-identity token: a projected token file or the dev token.
 - `internal/vaultclient/` - the gRPC client for the vault; it sends the workload token on every call.
-- `internal/workloadauth/` - service-to-service authentication, a byte-for-byte copy of the
-  canonical package in sneakers-vault at `SNEAKERS_VAULT_REF`. Never edit it here: change it in the
-  vault, bump the ref and copy it again. `scripts/workloadauth-check.sh` (run in CI) compares them.
+- Service-to-service authentication (the token sent to the vault) comes from
+  `github.com/Bugs5382/go-workload-identity`.
 - `internal/grpcsvc/` - the `sneakers.common.v1.HealthService` handler.
 - `internal/config/`, `internal/server/` - the environment config and the gRPC server bootstrap,
   with the health service and readiness checks from `github.com/Bugs5382/go-buildinfo`.
@@ -82,6 +81,4 @@ Follow the logging rules in `CLAUDE.md`. In short:
   use a git-ignored `go.work` beside `go.mod` (`go work init . ../go-<pkg>`, which writes
   `use . ../go-<pkg>`); `go.work` and `go.work.sum` are in `.gitignore`. For local callee protos,
   point `SNEAKERS_VAULT_PROTO_DIR` at a local `proto/` directory when running
-  `scripts/proto-generate.sh`, rather than editing a pin in `proto-refs.env`. `SNEAKERS_VAULT_REF`
-  is also the sneakers-vault commit `internal/workloadauth/` is copied from; `SNEAKERS_VAULT_DIR`
-  points `scripts/workloadauth-check.sh` at a local sneakers-vault checkout instead.
+  `scripts/proto-generate.sh`, rather than editing a pin in `proto-refs.env`.
