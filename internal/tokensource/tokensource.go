@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Sneakers-PAM/sneakers-connector/internal/workloadauth"
+	workloadauth "github.com/Bugs5382/go-workload-identity"
 	"github.com/rs/zerolog"
 )
 

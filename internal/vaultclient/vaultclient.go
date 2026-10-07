@@ -11,10 +11,10 @@ import (
 	"os"
 
 	buildinfo "github.com/Bugs5382/go-buildinfo"
+	workloadauth "github.com/Bugs5382/go-workload-identity"
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/server"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/tokensource"
-	"github.com/Sneakers-PAM/sneakers-connector/internal/workloadauth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"

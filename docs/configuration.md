@@ -24,7 +24,8 @@ rotation jobs per poll), and the per-job time limits (20 seconds for a heartbeat
 Every call to the vault carries the connector's workload identity twice:
 
 - as `authorization: Bearer <token>` gRPC metadata, which the vault's service-to-service check
-  (`internal/workloadauth`) verifies before the call runs. The token file is read again on every
+  verifies before the call runs. Both sides use the owner's helper package
+  `github.com/Bugs5382/go-workload-identity` (v1.0.0), which replaced the old private copy. The token file is read again on every
   call, so a token the kubelet rotates is sent without a restart. With no token file set no
   bearer is sent, which only a vault with authentication off (local development) accepts;
 - in the request's `identity.token` field (claim, reveal and report, for heartbeats and

@@ -8,8 +8,8 @@ require (
 	github.com/Bugs5382/go-buildinfo v1.0.0
 	github.com/Bugs5382/go-log v1.3.0
 	github.com/Bugs5382/go-otel v1.3.2
+	github.com/Bugs5382/go-workload-identity v1.0.0
 	github.com/go-ldap/ldap/v3 v3.4.14
-	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/rs/zerolog v1.35.1
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.70.0
@@ -17,7 +17,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.45.0
 	golang.org/x/crypto v0.56.0
 	google.golang.org/grpc v1.84.0
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -27,6 +27,7 @@ require (
 	github.com/go-asn1-ber/asn1-ber v1.5.8 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
