@@ -4,29 +4,17 @@
 package config
 
 import (
-	"os"
 	"testing"
 )
 
-func TestLoadRequiredAndDefault(t *testing.T) {
-	t.Setenv("DATABASE_DSN", "postgres://x")
+// TestLoadNoDatabaseDSN covers #22: the connector has no database, so Load
+// must not require DATABASE_DSN (or read it at all) to start.
+func TestLoadNoDatabaseDSN(t *testing.T) {
 	c, err := Load()
 	if err != nil {
-		t.Fatalf("unexpected err: %v", err)
-	}
-	if c.DatabaseDSN != "postgres://x" {
-		t.Fatalf("got %q", c.DatabaseDSN)
+		t.Fatalf("unexpected err with no env set: %v", err)
 	}
 	if c.GRPCPort != "9090" {
 		t.Fatalf("default GRPCPort got %q", c.GRPCPort)
-	}
-}
-
-func TestLoadMissingRequired(t *testing.T) {
-	if err := os.Unsetenv("DATABASE_DSN"); err != nil {
-		t.Fatalf("unsetenv: %v", err)
-	}
-	if _, err := Load(); err == nil {
-		t.Fatal("expected error for missing DATABASE_DSN")
 	}
 }
