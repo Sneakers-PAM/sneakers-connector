@@ -15,7 +15,7 @@ type Config struct {
 func Load() (Config, error) {
 	c := Config{
 		GRPCPort:     getOr("GRPC_PORT", "9090"),
-		OTLPEndpoint: getOr("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
+		OTLPEndpoint: os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 	}
 	return c, nil
 }

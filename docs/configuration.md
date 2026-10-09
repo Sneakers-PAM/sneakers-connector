@@ -7,7 +7,7 @@ local defaults.
 |---|---|---|
 | `VAULT_ADDR` | `localhost:9091` | The vault's gRPC address (`host:port`). The connection has no TLS of its own, so run it where the network or a mesh protects it. |
 | `GRPC_PORT` | `9090` | The port the health services listen on. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | OpenTelemetry OTLP gRPC endpoint for traces and metrics. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset (no export) | OpenTelemetry OTLP gRPC endpoint for traces and metrics. Unset or empty disables export cleanly; set it to opt in. |
 | `WORKLOAD_TOKEN_FILE` | (none) | Path to the workload token, a Kubernetes projected ServiceAccount token with audience `sneakers` (the chart mounts it at `/var/run/secrets/sneakers/token`). Sent on every vault call; see [Vault identity token](#vault-identity-token). When set, it wins over `CONNECTOR_TOKEN_FILE` and `CONNECTOR_DEV_TOKEN`. |
 | `CONNECTOR_TOKEN_FILE` | (none) | The older name for `WORKLOAD_TOKEN_FILE`, read only when that is unset. When set, it wins over `CONNECTOR_DEV_TOKEN`. |
 | `CONNECTOR_TOKEN_DIR` | `/var/run/secrets/` | The directory the token file must sit under. Must be absolute. Only read when a token file is set. |
