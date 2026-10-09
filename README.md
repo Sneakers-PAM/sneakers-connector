@@ -22,11 +22,11 @@ The connector needs a vault to pull jobs from. Against a vault on its default lo
 dev worker token (the vault accepts it outside production only):
 
 ```bash
-DATABASE_DSN=unused VAULT_ADDR=localhost:9091 go run ./cmd/connector
+VAULT_ADDR=localhost:9091 go run ./cmd/connector
 ```
 
-It serves the gRPC health services on port 9090. It doesn't use a database; `DATABASE_DSN` only has
-to be set (see [docs/configuration.md](docs/configuration.md)).
+It serves the gRPC health services on port 9090. It doesn't use a database (see
+[docs/configuration.md](docs/configuration.md)).
 
 Run the tests. The LDAP adapter's live tests also run when an lldap container listens on
 localhost:23890 with base DN `dc=example,dc=org`; without one they skip:
