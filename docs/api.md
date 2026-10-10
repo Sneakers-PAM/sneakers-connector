@@ -34,8 +34,10 @@ JSON:
 `status` and each `state` are `ok`, `degraded` (an optional dependency is failing) or `down` (a
 required one is). `error` is a fixed class, never the error itself: `timeout`, `refused`,
 `unavailable`, `unauthenticated` or `error` (or go-buildinfo's `connection-refused`, `dns`,
-`network`, `canceled` or `panic`). Each dependency is checked with a one-second timeout,
-and the result answers for five seconds, so frequent probes don't load the vault.
+`network`, `canceled` or `panic`). The dependencies are checked in the background every
+five seconds, each with a one-second timeout, and a health check only reads the last result, so
+a probe never waits on the vault and frequent probes don't load it. Right after the start, before
+the first pass, each dependency is `down` with the class `pending`.
 
 `sneakers.common.v1.HealthService/Check` is unchanged and always answers `SERVING`.
 
