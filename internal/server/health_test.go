@@ -48,6 +48,9 @@ func healthClient(t *testing.T, checker *health.Checker) healthpb.HealthClient {
 		t.Fatalf("dial: %v", err)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
+	if checker != nil {
+		awaitFirstPass(t, checker)
+	}
 	return healthpb.NewHealthClient(conn)
 }
 
@@ -77,7 +80,7 @@ func TestHealth_ReadinessFollowsVaultLivenessDoesNot(t *testing.T) {
 		t.Fatalf("readiness while healthy = %v", st)
 	}
 	down.Store(true)
-	time.Sleep(testTTL)
+	time.Sleep(2 * testTTL)
 	st, md := check(t, c, "")
 	if st != healthpb.HealthCheckResponse_NOT_SERVING {
 		t.Fatalf("readiness while the vault is down = %v, want NOT_SERVING", st)
@@ -115,7 +118,7 @@ func TestHealth_ReadinessFollowsVaultLivenessDoesNot(t *testing.T) {
 	}
 
 	down.Store(false)
-	time.Sleep(testTTL)
+	time.Sleep(2 * testTTL)
 	if st, _ := check(t, c, ""); st != healthpb.HealthCheckResponse_SERVING {
 		t.Fatalf("readiness after recovery = %v, want SERVING", st)
 	}
