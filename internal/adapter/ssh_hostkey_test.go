@@ -149,21 +149,66 @@ func TestSSHValidateRefusesHostKeyMismatch(t *testing.T) {
 	}
 }
 
+// An unpinned target is never dialled, so it sees no connection at all.
 func TestSSHValidateRefusesUnpinnedTarget(t *testing.T) {
-	pemPriv, pub := genClientKey(t)
-	hostKey := newHostSigner(t)
-	host, port, attempts := startKeyedSSHServer(t, pub, hostKey)
+	pemPriv, _ := genClientKey(t)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	var accepted atomic.Int32
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			accepted.Add(1)
+			_ = c.Close()
+		}
+	}()
 
-	res, detail := validateSSH(t, Conn{Host: host, Port: port}, Cred{Username: "svc", PrivateKey: pemPriv})
+	res, detail := validateSSH(t, Conn{Host: "127.0.0.1", Port: ln.Addr().(*net.TCPAddr).Port}, Cred{Username: "svc", PrivateKey: pemPriv})
 	if res != HostKeyNotPinned {
 		t.Fatalf("Validate = %v (%s), want HostKeyNotPinned", res, detail)
 	}
-	fp := ssh.FingerprintSHA256(hostKey.PublicKey())
-	if !strings.Contains(detail, "host key not pinned for this target") || !strings.Contains(detail, fp) {
-		t.Fatalf("detail = %q, want the not-pinned reason and the presented fingerprint %s", detail, fp)
+	if !strings.Contains(detail, "host key not pinned for this target") || !strings.Contains(detail, "pin the host key first") {
+		t.Fatalf("detail = %q, want the not-pinned reason and what to do", detail)
 	}
-	if n := attempts.Load(); n != 0 {
-		t.Fatalf("client key offered %d times to an unpinned host", n)
+	if n := accepted.Load(); n != 0 {
+		t.Fatalf("unpinned target accepted %d connections, want none", n)
+	}
+}
+
+func TestSSHPrecheckRefusesOnlyUnpinnedTargets(t *testing.T) {
+	a, _ := Get("ssh")
+	pc, ok := a.(Prechecker)
+	if !ok {
+		t.Fatal("ssh adapter has no Precheck")
+	}
+	if res, detail, refuse := pc.Precheck(Conn{Host: "app01.example.org", Port: 22, HostKeys: []string{"not a key"}}); !refuse || res != HostKeyNotPinned || detail != NotPinnedDetail {
+		t.Fatalf("Precheck(unpinned) = %v %q %v, want HostKeyNotPinned refused", res, detail, refuse)
+	}
+	if _, _, refuse := pc.Precheck(Conn{Host: "app01.example.org", Port: 22, HostKeys: []string{pinOf(newHostSigner(t))}}); refuse {
+		t.Fatal("Precheck refused a pinned target")
+	}
+}
+
+func TestSSHValidateMismatchNamesPresentedAndPinnedKeys(t *testing.T) {
+	pemPriv, pub := genClientKey(t)
+	hostKey := newHostSigner(t)
+	host, port, _ := startKeyedSSHServer(t, pub, hostKey)
+	pinA, pinB := newHostSigner(t), newHostSigner(t)
+
+	res, detail := validateSSH(t, Conn{Host: host, Port: port, HostKeys: []string{pinOf(pinA), pinOf(pinB)}}, Cred{Username: "svc", PrivateKey: pemPriv})
+	if res != HostKeyMismatch {
+		t.Fatalf("Validate = %v (%s), want HostKeyMismatch", res, detail)
+	}
+	want := "host key mismatch (presented " + ssh.FingerprintSHA256(hostKey.PublicKey()) + ", pinned " +
+		ssh.FingerprintSHA256(pinA.PublicKey()) + ", " + ssh.FingerprintSHA256(pinB.PublicKey()) + ")"
+	if detail != want {
+		t.Fatalf("detail = %q, want %q", detail, want)
 	}
 }
 

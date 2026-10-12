@@ -94,6 +94,11 @@ jobs:
         run: go vet ./...
       - name: Test
         run: go test -count=1 ./... -cover
+      # The SSH heartbeat against a real OpenSSH server (PerSourcePenalties
+      # on, LogLevel VERBOSE) in a throwaway container, checked from sshd's
+      # own log.
+      - name: OpenSSH heartbeat
+        run: go test -count=1 -tags integration -run TestOpenSSH ./internal/worker/
   lint:
     name: 🧹 GolangCI
     if: github.event.pull_request.draft == false
