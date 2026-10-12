@@ -102,7 +102,7 @@ the adapter is given:
 |---|---|---|
 | `ldap`, `ldaps` | binds as the account | changes the account's own password |
 | `kerberos` | requests a ticket (AS-REQ) for the account | changes the password over kpasswd (RFC 3244), on port 464 of the same host |
-| `ssh` | public-key handshake as the account, only to a host presenting a pinned host key; no command is run | not supported (reports unreachable) |
+| `ssh` | signs in as the account (private key, else password) and closes after authentication, only to a host presenting a pinned host key; an unpinned target is never contacted; no command is run | not supported (reports unreachable) |
 | `winrm`, `samr` | placeholder: reports unreachable | placeholder: reports unreachable |
 
 ### LDAP and the domain field

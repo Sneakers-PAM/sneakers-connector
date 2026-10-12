@@ -77,7 +77,7 @@ type Conn struct {
 	Realm  string
 	// HostKeys are the target's pinned SSH host keys in authorized_keys
 	// form. The ssh adapter connects only to a host presenting one of them;
-	// empty means not pinned, and it refuses to connect.
+	// empty means not pinned, and it never contacts the target.
 	HostKeys []string
 	// Logon is the AD account's logon format, from the secret. Zero means
 	// the adapter's default logon name.
@@ -117,6 +117,13 @@ type Adapter interface {
 	// any other error that doesn't confirm a rejection). Rotate never logs
 	// current or newPassword.
 	Rotate(ctx context.Context, c Conn, current Cred, newPassword string) (Result, string)
+}
+
+// Prechecker is an Adapter that can refuse a job from its connection details
+// alone. When Precheck returns refuse, the worker reports result and detail
+// without revealing the credential or contacting the target.
+type Prechecker interface {
+	Precheck(c Conn) (result Result, detail string, refuse bool)
 }
 
 // AccountFlags is what an adapter read about an AD account. Known is false

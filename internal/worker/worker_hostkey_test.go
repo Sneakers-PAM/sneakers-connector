@@ -87,7 +87,8 @@ func TestHeartbeatReportsHostKeyRefusalsAsTheirOwnResults(t *testing.T) {
 }
 
 // The real ssh adapter, driven through the worker against a throwaway SSH
-// server the job has no pins for, reports HOST_KEY_NOT_PINNED.
+// server the job has no pins for, reports HOST_KEY_NOT_PINNED without
+// revealing the credential.
 func TestSSHHeartbeatOfUnpinnedTargetIsReportedNotPinned(t *testing.T) {
 	_, hostPriv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -144,8 +145,11 @@ func TestSSHHeartbeatOfUnpinnedTargetIsReportedNotPinned(t *testing.T) {
 	if got.GetResult() != vaultv1.HeartbeatResult_HEARTBEAT_RESULT_HOST_KEY_NOT_PINNED {
 		t.Fatalf("result = %v (%s), want HOST_KEY_NOT_PINNED", got.GetResult(), got.GetDetail())
 	}
-	if !strings.Contains(got.GetDetail(), ssh.FingerprintSHA256(hostSigner.PublicKey())) {
-		t.Fatalf("detail = %q, want the presented fingerprint", got.GetDetail())
+	if !strings.Contains(got.GetDetail(), "pin the host key first") {
+		t.Fatalf("detail = %q, want it to say to pin the host key first", got.GetDetail())
+	}
+	if len(fc.revealed) != 0 {
+		t.Fatalf("revealed %v for an unpinned target, want no reveal", fc.revealed)
 	}
 }
 

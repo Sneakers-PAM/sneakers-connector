@@ -62,6 +62,8 @@ docker build --build-arg VERSION=v0.1.0 --build-arg COMMIT="$(git rev-parse HEAD
 A poll runs the due heartbeats, then the due rotations, one job at a time. Each job has its own
 time limit (20 seconds for a heartbeat, 30 for a rotation), so one slow target can't hold up the
 rest of the batch. A failure on one job is logged with its `secret_id` and never stops the others.
+A heartbeat target of any protocol that can't be reached is backed off, 5 minutes doubling up to an
+hour, before the connector contacts it again (see "TLS to targets" for the SSH rules).
 
 Run more than one connector if one can't keep up; the vault hands each due job to one claimant.
 
@@ -87,17 +89,45 @@ certificate needs its CA trusted in the image. `CONNECTOR_TLS_INSECURE=true` tur
 for a test directory only.
 
 SSH heartbeats connect only to a host that presents one of the target's pinned host keys, the same
-check the SSH broker makes. The vault sends the pins with each job. The check runs during key
-exchange, before the account's key is offered, so a host that isn't verified never sees it. A
-heartbeat proves the key is accepted and runs no command.
+check the SSH broker makes. The vault sends the pins with each job. A heartbeat signs in as the
+account, with the secret's private key, or with its password when the secret has no key (offered as
+`password` and `keyboard-interactive`), and closes the connection once the sign-in completes. It
+runs no command. The host key is checked during key exchange, before any credential is offered, so
+a host that isn't verified never sees it.
 
-- A target with no pins (or none that parse) reports `host key not pinned for this target`.
-- A host whose key matches none of the pins reports `host key mismatch`.
+A heartbeat never opens a connection it means to drop before authenticating. OpenSSH 9.8 and later
+penalise those under `PerSourcePenalties` ("connections without attempting authentication"), and
+the penalties escalate until the Sneakers address is refused, which breaks real sessions and
+rotation as well.
 
-Neither is a wrong credential: the connector reports them as their own heartbeat results
-(`HOST_KEY_NOT_PINNED`, `HOST_KEY_MISMATCH`), never as `FAILED`. Both details, and the
-`ssh host key refused` warning, name the presented key's SHA256 fingerprint, never key material.
-Pin the target in the vault (site admins only) with the key's authorized_keys line.
+- **Not pinned.** A target with no pins (or none that parse) is never contacted, and the
+  credential isn't revealed. The heartbeat reports `HOST_KEY_NOT_PINNED` with "host key not pinned
+  for this target: pin the host key first; no connection was made".
+- **Mismatch.** A host whose key matches none of the pins costs one connection, refused during key
+  exchange. The heartbeat reports `HOST_KEY_MISMATCH` with the presented and the pinned SHA256
+  fingerprints, `host key mismatch (presented SHA256:..., pinned SHA256:..., SHA256:...)`, and then
+  stops contacting that target. Later heartbeats are reported `HOST_KEY_MISMATCH` without a
+  connection, their detail ending "heartbeat stopped for this target until its host key is
+  re-pinned". Re-pinning the target (or moving it) makes the next heartbeat try again.
+- **Unreachable.** A target that can't be reached isn't contacted again for 5 minutes, then 10,
+  20 and so on, capped at an hour, however often the vault hands out its heartbeat (the vault backs
+  off `UNREACHABLE` on its side too). Heartbeats in between are reported `UNREACHABLE` without a
+  connection, with "backing off after N failed attempts, next attempt after <time>". A good result
+  clears it.
+
+The connector keeps the stopped and backing-off targets in memory, keyed by protocol, address and
+pins, so a restarted connector tries each of them once more, and each connector replica keeps its
+own.
+
+Neither host-key result is a wrong credential: the connector reports them as their own heartbeat
+results (`HOST_KEY_NOT_PINNED`, `HOST_KEY_MISMATCH`), never as `FAILED`. The vault records them as a
+failed check, notifies the first one like a drift and audits each as `secret.heartbeat.host_key`
+with the detail, so an admin sees the fingerprints and can re-pin or investigate. No detail or log
+carries key material. Pin the target in the vault (site admins only) with the key's authorized_keys
+line.
+
+The only other connection to a target that stops at the host key is the SSH broker's
+`ScanHostKey`, which the pin dialog calls on demand: one connection per scan, never on a schedule.
 
 ## Troubleshooting
 
@@ -107,7 +137,11 @@ Pin the target in the vault (site admins only) with the key's authorized_keys li
 | `connector token file unusable` or `unavailable` (error, at start) | The token file is missing, unreadable or empty. |
 | `no adapter registered for protocol` (warn) | A job names a protocol the connector doesn't have; it is reported so the vault moves on. |
 | `rotation refused: built-in Administrator account` (warn) | Expected for RID 500 accounts; nothing was changed. |
-| `ssh host key refused` (warn) | The SSH target is unpinned or presented another key. `detail` names the presented fingerprint; pin or re-pin the target. |
+| `heartbeat refused before contacting the target` (warn) | The SSH target has no usable pin, so nothing was sent to it. Pin the target. |
+| `ssh host key refused` (warn) | The SSH target presented a key matching none of its pins. `detail` names the presented and pinned fingerprints; re-pin the target or investigate. |
+| `heartbeat stopped for this target until its host key is re-pinned` (warn) | Follows a mismatch: later heartbeats of that target are reported without a connection. |
+| `target unreachable; backing off` (warn) | The target couldn't be reached; `backoff` says how long until it is tried again. |
+| `heartbeat held: target not contacted` (info) | A heartbeat of a stopped or backing-off target, reported without a connection. |
 
 ## Shutdown
 

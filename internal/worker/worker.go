@@ -61,7 +61,8 @@ func RunWithSource(ctx context.Context, vc vaultv1.VaultServiceClient, src Token
 // RunWithLogger is RunWithSource with every job logged through lg, correlated
 // with the span in ctx. RunWithSource discards the logs.
 func RunWithLogger(ctx context.Context, vc vaultv1.VaultServiceClient, src TokenSource, interval time.Duration, lg log.Logger) {
-	runTicks(ctx, lg, vc, src)
+	g := newTargetGuard()
+	runTicks(ctx, lg, vc, src, g)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -70,19 +71,19 @@ func RunWithLogger(ctx context.Context, vc vaultv1.VaultServiceClient, src Token
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			runTicks(ctx, lg, vc, src)
+			runTicks(ctx, lg, vc, src, g)
 		}
 	}
 }
 
-func runTicks(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, src TokenSource) {
+func runTicks(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, src TokenSource, g *targetGuard) {
 	identity := &vaultv1.WorkerIdentity{Token: src.Token()}
-	tick(ctx, lg, vc, identity)
+	tick(ctx, lg, vc, identity, g)
 	rotationTick(ctx, lg, vc, identity)
 }
 
 // tick claims one batch of due jobs and processes each best-effort.
-func tick(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity) {
+func tick(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity, g *targetGuard) {
 	logger := lg.Ctx(ctx)
 
 	resp, err := vc.ClaimDueHeartbeats(ctx, &vaultv1.ClaimDueHeartbeatsRequest{
@@ -95,7 +96,7 @@ func tick(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, ide
 	}
 
 	for _, job := range resp.GetJobs() {
-		processJob(ctx, lg, vc, identity, job)
+		processJob(ctx, lg, vc, identity, job, g)
 	}
 }
 
@@ -110,7 +111,12 @@ func tick(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, ide
 // reclaimed on a future poll) rather than aborting the batch. Reveal and
 // validate are bounded by jobTimeout so one slow target can't stall the
 // rest of a serial batch.
-func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity, job *vaultv1.HeartbeatJob) {
+//
+// A target the adapter refuses up front (an SSH target with no pin), one
+// still backing off after it couldn't be reached, and one that presented a
+// host key matching none of its pins are reported without revealing the
+// credential or contacting the target (see targetGuard).
+func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity, job *vaultv1.HeartbeatJob, g *targetGuard) {
 	logger := lg.Ctx(ctx).With(log.F("secret_id", job.GetSecretId()))
 
 	ctx, cancel := context.WithTimeout(ctx, jobTimeout)
@@ -125,15 +131,6 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 		return
 	}
 
-	reveal, err := vc.RevealForHeartbeat(ctx, &vaultv1.RevealForHeartbeatRequest{
-		Identity: identity,
-		SecretId: job.GetSecretId(),
-	})
-	if err != nil {
-		logger.Warn("reveal for heartbeat", log.F("error", err.Error()))
-		return
-	}
-
 	conn := adapter.Conn{
 		Host:     job.GetConnection().GetHost(),
 		Port:     int(job.GetConnection().GetPort()),
@@ -143,6 +140,30 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 		HostKeys: job.GetTarget().GetSshHostKeys(),
 		Logon:    logonFormat(job.GetLogon()),
 	}
+
+	if pc, ok := a.(adapter.Prechecker); ok {
+		if result, detail, refuse := pc.Precheck(conn); refuse {
+			logger.Warn("heartbeat refused before contacting the target", log.F("protocol", protocol), log.F("result", result.String()), log.F("detail", detail))
+			reportHeartbeat(ctx, lg, vc, identity, job, toHeartbeatResult(result), detail, adapter.AccountFlags{})
+			return
+		}
+	}
+	key := guardKey(protocol, conn)
+	if result, detail, held := g.hold(key); held {
+		logger.Info("heartbeat held: target not contacted", log.F("protocol", protocol), log.F("result", result.String()), log.F("detail", detail))
+		reportHeartbeat(ctx, lg, vc, identity, job, toHeartbeatResult(result), detail, adapter.AccountFlags{})
+		return
+	}
+
+	reveal, err := vc.RevealForHeartbeat(ctx, &vaultv1.RevealForHeartbeatRequest{
+		Identity: identity,
+		SecretId: job.GetSecretId(),
+	})
+	if err != nil {
+		logger.Warn("reveal for heartbeat", log.F("error", err.Error()))
+		return
+	}
+
 	cred := adapter.Cred{
 		Username:   reveal.GetUsername(),
 		Password:   reveal.GetPassword(),
@@ -160,6 +181,12 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 	}
 	if result == adapter.HostKeyNotPinned || result == adapter.HostKeyMismatch {
 		logger.Warn("ssh host key refused", log.F("result", result.String()), log.F("detail", detail), log.F("pinned_keys", len(conn.HostKeys)))
+	}
+	switch backoff, stopped := g.record(key, result, detail); {
+	case stopped:
+		logger.Warn("heartbeat stopped for this target until its host key is re-pinned", log.F("protocol", protocol))
+	case backoff > 0:
+		logger.Warn("target unreachable; backing off", log.F("protocol", protocol), log.F("backoff", backoff.String()))
 	}
 	if flags.Known {
 		logger.Debug("heartbeat read account flags", log.F("builtin_administrator", flags.BuiltinAdministrator), log.F("admin_count", flags.AdminCount))

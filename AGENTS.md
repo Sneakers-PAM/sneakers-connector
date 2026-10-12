@@ -39,7 +39,9 @@ never logs credential material or the worker token.
 - Test: `task test`. Everything runs against in-process fakes and loopback listeners, except the
   LDAP adapter's live tests, which need lldap on localhost:23890 with base DN `dc=example,dc=org`
   (they skip without it; CI runs one), and the Kerberos live tests, which need a KDC and the
-  `KRB_TEST_*` variables (they skip without them).
+  `KRB_TEST_*` variables (they skip without them). The SSH heartbeat's OpenSSH tests are behind
+  the `integration` build tag and need docker:
+  `go test -tags integration -run TestOpenSSH ./internal/worker/` (CI runs them).
 - Lint: `task lint`, plus `buf lint` for the proto (after `scripts/proto-generate.sh` has fetched
   the vault protos).
 - Generated code: `scripts/proto-generate.sh`, with the plugin versions pinned in
