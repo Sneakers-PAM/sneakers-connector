@@ -88,6 +88,22 @@ LDAPS checks the target's certificate against the system roots. A directory with
 certificate needs its CA trusted in the image. `CONNECTOR_TLS_INSECURE=true` turns the check off
 for a test directory only.
 
+A certificate that fails the check is reported as an untrusted certificate, never as unreachable:
+the target answered, and the credential was never sent. The detail starts with
+`untrusted certificate:` and names the first thing wrong, checked in this order:
+
+| Cause | Detail |
+|---|---|
+| expired | `the certificate for <name> expired on <date>` |
+| not valid yet | `the certificate for <name> isn't valid until <date>` |
+| issued for another host name | `the certificate is for <names>, not <host>` |
+| the issuer isn't trusted | `the certificate for <name> is signed by <issuer>, which isn't in the trusted CA list` |
+
+The issuer named is the issuer of the last certificate the server sent, so a server that sends only
+its own certificate names its issuing CA. Unreachable stays for a target that can't be reached:
+DNS, a refused connection, or a timeout. The heartbeat isn't backed off for an untrusted
+certificate; it's checked again on its schedule.
+
 SSH heartbeats connect only to a host that presents one of the target's pinned host keys, the same
 check the SSH broker makes. The vault sends the pins with each job. A heartbeat signs in as the
 account, with the secret's private key, or with its password when the secret has no key (offered as
@@ -140,6 +156,8 @@ The only other connection to a target that stops at the host key is the SSH brok
 | `heartbeat refused before contacting the target` (warn) | The SSH target has no usable pin, so nothing was sent to it. Pin the target. |
 | `ssh host key refused` (warn) | The SSH target presented a key matching none of its pins. `detail` names the presented and pinned fingerprints; re-pin the target or investigate. |
 | `heartbeat stopped for this target until its host key is re-pinned` (warn) | Follows a mismatch: later heartbeats of that target are reported without a connection. |
+| `target certificate not trusted; the credential was not sent` (warn) | The LDAPS target's certificate failed the check. `detail` says why (see "TLS to targets"). |
+| `rotation stopped: target certificate not trusted; nothing changed` (warn) | The same, on a rotation: the password wasn't changed. |
 | `target unreachable; backing off` (warn) | The target couldn't be reached; `backoff` says how long until it is tried again. |
 | `heartbeat held: target not contacted` (info) | A heartbeat of a stopped or backing-off target, reported without a connection. |
 

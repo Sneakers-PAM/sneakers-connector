@@ -88,7 +88,8 @@ func (a *ldapAdapter) ValidateAccount(ctx context.Context, c Conn, cred Cred) (R
 	}
 	conn, err := a.dial(c)
 	if err != nil {
-		return Unreachable, fmt.Sprintf("dial %s://%s:%d: %v", scheme, c.Host, c.Port, err), AccountFlags{}
+		result, detail := dialFailure(err, c, fmt.Sprintf("dial %s://%s:%d", scheme, c.Host, c.Port))
+		return result, detail, AccountFlags{}
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -152,7 +153,7 @@ func bindIdentifier(c Conn, username string) string {
 func (a *ldapAdapter) Rotate(ctx context.Context, c Conn, current Cred, newPassword string) (Result, string) {
 	conn, err := a.dial(c)
 	if err != nil {
-		return Unreachable, fmt.Sprintf("dial %s:%d: %v", c.Host, c.Port, err)
+		return dialFailure(err, c, fmt.Sprintf("dial %s:%d", c.Host, c.Port))
 	}
 	defer func() { _ = conn.Close() }()
 
@@ -190,6 +191,16 @@ func dialLDAP(c Conn) (*ldap.Conn, error) {
 		opts = append(opts, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: tlsInsecureSkipVerify()})) // #nosec G402 -- off unless CONNECTOR_TLS_INSECURE is set, see tlsInsecureSkipVerify
 	}
 	return ldap.DialURL(addr, opts...)
+}
+
+// dialFailure classifies a failed dial: a TLS certificate the connector
+// doesn't trust is UntrustedCertificate, naming why; anything else (DNS,
+// refused, timeout) is Unreachable. where says what was dialled.
+func dialFailure(err error, c Conn, where string) (Result, string) {
+	if reason, ok := certificateFailure(err, c.Host); ok {
+		return UntrustedCertificate, fmt.Sprintf("%s: %s", where, reason)
+	}
+	return Unreachable, fmt.Sprintf("%s: %v", where, err)
 }
 
 // tlsInsecureSkipVerify reports whether the LDAPS dial should skip server

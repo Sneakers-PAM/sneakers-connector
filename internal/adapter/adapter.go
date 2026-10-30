@@ -33,6 +33,11 @@ const (
 	// none of its pins, so the adapter refused to authenticate to it.
 	// Nothing about the credential was learned.
 	HostKeyMismatch
+	// UntrustedCertificate means the target answered, but its TLS
+	// certificate failed verification (an unknown CA, expired or not yet
+	// valid, or issued for another host name), so the adapter never sent
+	// the credential. It is a trust problem, not a reachability one.
+	UntrustedCertificate
 )
 
 // BuiltinAdministratorReason is the detail Rotate reports with Refused.
@@ -53,6 +58,8 @@ func (r Result) String() string {
 		return "host_key_not_pinned"
 	case HostKeyMismatch:
 		return "host_key_mismatch"
+	case UntrustedCertificate:
+		return "untrusted_certificate"
 	default:
 		return "unknown"
 	}
