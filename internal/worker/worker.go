@@ -182,6 +182,9 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 	if result == adapter.HostKeyNotPinned || result == adapter.HostKeyMismatch {
 		logger.Warn("ssh host key refused", log.F("result", result.String()), log.F("detail", detail), log.F("pinned_keys", len(conn.HostKeys)))
 	}
+	if result == adapter.UntrustedCertificate {
+		logger.Warn("target certificate not trusted; the credential was not sent", log.F("protocol", protocol), log.F("detail", detail))
+	}
 	switch backoff, stopped := g.record(key, result, detail); {
 	case stopped:
 		logger.Warn("heartbeat stopped for this target until its host key is re-pinned", log.F("protocol", protocol))
@@ -230,6 +233,10 @@ func toHeartbeatResult(r adapter.Result) vaultv1.HeartbeatResult {
 	case adapter.Invalid:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_FAILED
 	case adapter.Unreachable:
+		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE
+	case adapter.UntrustedCertificate:
+		// The vault has no result of its own for a certificate failure yet;
+		// the detail carries the reason ("untrusted certificate: ...").
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE
 	case adapter.HostKeyNotPinned:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_HOST_KEY_NOT_PINNED
@@ -326,6 +333,9 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 
 	changeResult, changeDetail := a.Rotate(ctx, conn, current, newPassword)
 	changePhase := toRotationPhase(changeResult)
+	if changeResult == adapter.UntrustedCertificate {
+		logger.Warn("rotation stopped: target certificate not trusted; nothing changed", log.F("protocol", protocol), log.F("detail", changeDetail))
+	}
 
 	if changeResult == adapter.Refused {
 		logger.Warn("rotation refused: built-in Administrator account; nothing changed", log.F("reason", changeDetail))
@@ -415,7 +425,7 @@ func toRotationPhase(r adapter.Result) vaultv1.RotationPhase {
 	switch r {
 	case adapter.Valid:
 		return vaultv1.RotationPhase_ROTATION_PHASE_OK
-	case adapter.Invalid, adapter.Unreachable, adapter.HostKeyNotPinned, adapter.HostKeyMismatch:
+	case adapter.Invalid, adapter.Unreachable, adapter.HostKeyNotPinned, adapter.HostKeyMismatch, adapter.UntrustedCertificate:
 		return vaultv1.RotationPhase_ROTATION_PHASE_FAILED
 	default:
 		return vaultv1.RotationPhase_ROTATION_PHASE_UNSPECIFIED
