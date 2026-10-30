@@ -96,6 +96,7 @@ the adapter is given:
 | `target.domain` | domain |
 | `target.realm` | Kerberos realm |
 | `target.ssh_host_keys` | the SSH host-key pins (authorized_keys lines); empty means not pinned |
+| none yet | the TLS certificate pins (SHA-256 fingerprints); the vault doesn't send them yet, so LDAPS uses the system roots |
 | `logon` (`format`, `netbios`, `upn_suffix`) | the AD account's logon format, from the secret; unset means the default logon name |
 
 | Protocol | Heartbeat | Rotation |
@@ -151,6 +152,7 @@ when the port is 0.
 | untrusted certificate (the target's TLS certificate failed the check; the credential is never sent) | `UNREACHABLE` for now, with a detail starting `untrusted certificate:` | `FAILED` |
 | SSH target with no usable pin; the account's key is never offered | `HOST_KEY_NOT_PINNED` | `FAILED` |
 | SSH host presented a key matching none of the pins; the account's key is never offered | `HOST_KEY_MISMATCH` | `FAILED` |
+| TLS target with certificate pins presented a chain matching none of them; the credential is never sent | none yet (pins aren't sent yet) | `FAILED` |
 | refused (the built-in Administrator) | not used | `SKIPPED` for both, with `builtin_administrator` set |
 
 The vault has no heartbeat result of its own for an untrusted certificate yet, so the connector

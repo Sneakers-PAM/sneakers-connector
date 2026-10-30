@@ -38,6 +38,10 @@ const (
 	// valid, or issued for another host name), so the adapter never sent
 	// the credential. It is a trust problem, not a reachability one.
 	UntrustedCertificate
+	// CertificateMismatch means the target has TLS certificate pins and
+	// presented a certificate chain matching none of them, so the adapter
+	// never sent the credential. Nothing about the credential was learned.
+	CertificateMismatch
 )
 
 // BuiltinAdministratorReason is the detail Rotate reports with Refused.
@@ -60,6 +64,8 @@ func (r Result) String() string {
 		return "host_key_mismatch"
 	case UntrustedCertificate:
 		return "untrusted_certificate"
+	case CertificateMismatch:
+		return "certificate_mismatch"
 	default:
 		return "unknown"
 	}
@@ -86,6 +92,12 @@ type Conn struct {
 	// form. The ssh adapter connects only to a host presenting one of them;
 	// empty means not pinned, and it never contacts the target.
 	HostKeys []string
+	// TLSPins are the target's pinned TLS certificates, each the SHA-256
+	// fingerprint of the server's own certificate or of a CA certificate
+	// it presents in its chain. With a usable pin, a TLS adapter trusts
+	// only a chain that matches one; with none, it verifies against the
+	// system roots.
+	TLSPins []string
 	// Logon is the AD account's logon format, from the secret. Zero means
 	// the adapter's default logon name.
 	Logon LogonFormat

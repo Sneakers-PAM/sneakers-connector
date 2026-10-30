@@ -174,8 +174,9 @@ func (a *ldapAdapter) Rotate(ctx context.Context, c Conn, current Cred, newPassw
 	return rotateAD(conn, c, current, newPassword)
 }
 
-// dialLDAP dials the target described by c, adding a TLS config (with the
-// dev InsecureSkipVerify seam) when c.UseTLS is set. Both Validate and Rotate
+// dialLDAP dials the target described by c, adding a TLS config (the
+// target's certificate pins, or the system roots, with the dev
+// InsecureSkipVerify seam) when c.UseTLS is set. Both Validate and Rotate
 // use it: a real AD/Samba LDAPS endpoint's certificate is usually self-signed
 // in dev, so an LDAPS bind (heartbeat or post-rotation validate) needs the
 // same seam the rotation change does.
@@ -188,15 +189,31 @@ func dialLDAP(c Conn) (*ldap.Conn, error) {
 
 	opts := []ldap.DialOpt{ldap.DialWithDialer(&net.Dialer{Timeout: dialTimeout})}
 	if c.UseTLS {
-		opts = append(opts, ldap.DialWithTLSConfig(&tls.Config{InsecureSkipVerify: tlsInsecureSkipVerify()})) // #nosec G402 -- off unless CONNECTOR_TLS_INSECURE is set, see tlsInsecureSkipVerify
+		opts = append(opts, ldap.DialWithTLSConfig(ldapsTLSConfig(c)))
 	}
 	return ldap.DialURL(addr, opts...)
 }
 
-// dialFailure classifies a failed dial: a TLS certificate the connector
-// doesn't trust is UntrustedCertificate, naming why; anything else (DNS,
-// refused, timeout) is Unreachable. where says what was dialled.
+// ldapsTLSConfig is the TLS config for an LDAPS dial: the target's
+// certificate pins when it has any, otherwise the system roots. The dev
+// seam CONNECTOR_TLS_INSECURE is the only way to turn the check off.
+func ldapsTLSConfig(c Conn) *tls.Config {
+	if tlsInsecureSkipVerify() {
+		return &tls.Config{InsecureSkipVerify: true} // #nosec G402 -- off unless CONNECTOR_TLS_INSECURE is set, see tlsInsecureSkipVerify
+	}
+	return pinnedTLSConfig(c.Host, c.TLSPins)
+}
+
+// dialFailure classifies a failed dial: a certificate matching none of the
+// target's TLS pins is CertificateMismatch, naming the presented and pinned
+// fingerprints; any other TLS certificate the connector doesn't trust is
+// UntrustedCertificate, naming why; anything else (DNS, refused, timeout) is
+// Unreachable. where says what was dialled.
 func dialFailure(err error, c Conn, where string) (Result, string) {
+	var mismatch *CertificateMismatchError
+	if errors.As(err, &mismatch) {
+		return CertificateMismatch, fmt.Sprintf("%s: %s", where, mismatch.Error())
+	}
 	if reason, ok := certificateFailure(err, c.Host); ok {
 		return UntrustedCertificate, fmt.Sprintf("%s: %s", where, reason)
 	}

@@ -84,13 +84,29 @@ Run more than one connector if one can't keep up; the vault hands each due job t
 
 ## TLS to targets
 
-LDAPS checks the target's certificate against the system roots. A directory with a self-signed
-certificate needs its CA trusted in the image. `CONNECTOR_TLS_INSECURE=true` turns the check off
-for a test directory only.
+LDAPS checks the target's certificate against the system roots, unless the target has TLS
+certificate pins. `CONNECTOR_TLS_INSECURE=true` turns the check off for a test directory only; it
+is a dev seam, never a setting, and pinning never turns the check off.
 
-A certificate that fails the check is reported as an untrusted certificate, never as unreachable:
-the target answered, and the credential was never sent. The detail starts with
-`untrusted certificate:` and names the first thing wrong, checked in this order:
+A pin is the SHA-256 fingerprint of a certificate, as 64 hex digits (an optional `sha256:` prefix,
+colons between bytes and any case are accepted). With at least one usable pin, the connector trusts
+the target's certificate only when:
+
+- the certificate is within its validity dates and covers the target's host name, as without a
+  pin, and
+- its own fingerprint is pinned (a leaf pin), or a pinned CA certificate that the server sends in
+  its chain signs it (a CA pin). A CA pin keeps working when the server's certificate is renewed by
+  the same CA; a leaf pin must be pinned again.
+
+A chain that matches no pin fails before the credential is sent. The detail names the presented
+fingerprints (the server's certificate first) and the pinned ones, so the old and new certificate
+can be compared before re-pinning. A target with no usable pin keeps using the system roots, so a
+publicly issued certificate needs no pin. The vault doesn't send TLS pins with jobs yet; until it
+does, every LDAPS target uses the system roots.
+
+A certificate that fails the check any other way than a pin mismatch is reported as an untrusted
+certificate, never as unreachable: the target answered, and the credential was never sent. The
+detail starts with `untrusted certificate:` and names the first thing wrong, checked in this order:
 
 | Cause | Detail |
 |---|---|
@@ -158,6 +174,8 @@ The only other connection to a target that stops at the host key is the SSH brok
 | `heartbeat stopped for this target until its host key is re-pinned` (warn) | Follows a mismatch: later heartbeats of that target are reported without a connection. |
 | `target certificate not trusted; the credential was not sent` (warn) | The LDAPS target's certificate failed the check. `detail` says why (see "TLS to targets"). |
 | `rotation stopped: target certificate not trusted; nothing changed` (warn) | The same, on a rotation: the password wasn't changed. |
+| `tls certificate matches none of the target's pins; the credential was not sent` (warn) | The TLS target presented a certificate that isn't pinned and isn't signed by a pinned CA. `detail` names the presented and pinned fingerprints; re-pin the target or investigate. |
+| `rotation stopped: tls certificate matches none of the target's pins; nothing changed` (warn) | The same, on a rotation: the password wasn't changed. |
 | `target unreachable; backing off` (warn) | The target couldn't be reached; `backoff` says how long until it is tried again. |
 | `heartbeat held: target not contacted` (info) | A heartbeat of a stopped or backing-off target, reported without a connection. |
 
