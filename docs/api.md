@@ -149,15 +149,14 @@ when the port is 0.
 | valid | `OK` | `OK` |
 | invalid (the target rejected the credential or the change) | `FAILED` | `FAILED` |
 | unreachable (no answer, or an answer that doesn't confirm a rejection) | `UNREACHABLE` | `FAILED` |
-| untrusted certificate (the target's TLS certificate failed the check; the credential is never sent) | `UNREACHABLE` for now, with a detail starting `untrusted certificate:` | `FAILED` |
+| untrusted certificate (the target's TLS certificate failed the check; the credential is never sent) | `UNTRUSTED_CERTIFICATE`, with a detail starting `untrusted certificate:` | `FAILED` |
 | SSH target with no usable pin; the account's key is never offered | `HOST_KEY_NOT_PINNED` | `FAILED` |
 | SSH host presented a key matching none of the pins; the account's key is never offered | `HOST_KEY_MISMATCH` | `FAILED` |
 | TLS target with certificate pins presented a chain matching none of them; the credential is never sent | none yet (pins aren't sent yet) | `FAILED` |
 | refused (the built-in Administrator) | not used | `SKIPPED` for both, with `builtin_administrator` set |
 
-The vault has no heartbeat result of its own for an untrusted certificate yet, so the connector
-sends `UNREACHABLE` with the reason in the detail (see the runbook's "TLS to targets"). It switches
-to a dedicated result once the vault defines one.
+The detail of an untrusted certificate names the reason (see the runbook's "TLS to targets"). The
+vault records it as a failed check without pausing the schedule.
 
 A rotation reports two phases. **Change** is the outcome of changing the password. **Validate** is
 the outcome of signing in with the new password, and runs only when the change succeeded;
