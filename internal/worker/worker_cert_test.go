@@ -36,10 +36,8 @@ func TestUntrustedCertificateIsNotBackedOff(t *testing.T) {
 }
 
 func TestUntrustedCertificateMapping(t *testing.T) {
-	// The vault has no heartbeat result of its own for this yet, so it is
-	// sent as UNREACHABLE with the certificate reason in the detail.
-	if got := toHeartbeatResult(adapter.UntrustedCertificate); got != vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE {
-		t.Errorf("toHeartbeatResult(UntrustedCertificate) = %v, want UNREACHABLE", got)
+	if got := toHeartbeatResult(adapter.UntrustedCertificate); got != vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNTRUSTED_CERTIFICATE {
+		t.Errorf("toHeartbeatResult(UntrustedCertificate) = %v, want UNTRUSTED_CERTIFICATE", got)
 	}
 	if got := toRotationPhase(adapter.UntrustedCertificate); got != vaultv1.RotationPhase_ROTATION_PHASE_FAILED {
 		t.Errorf("toRotationPhase(UntrustedCertificate) = %v, want FAILED", got)

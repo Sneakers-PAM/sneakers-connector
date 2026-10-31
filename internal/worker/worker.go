@@ -238,9 +238,7 @@ func toHeartbeatResult(r adapter.Result) vaultv1.HeartbeatResult {
 	case adapter.Unreachable:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE
 	case adapter.UntrustedCertificate:
-		// The vault has no result of its own for a certificate failure yet;
-		// the detail carries the reason ("untrusted certificate: ...").
-		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE
+		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNTRUSTED_CERTIFICATE
 	case adapter.HostKeyNotPinned:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_HOST_KEY_NOT_PINNED
 	case adapter.HostKeyMismatch:
