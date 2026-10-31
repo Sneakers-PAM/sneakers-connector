@@ -360,15 +360,11 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 	if k, ok := adapter.Get("kerberos"); ok && va == k {
 		// conn.Port is the LDAP/LDAPS port used to perform the change (e.g.
 		// 636); the Kerberos adapter's KDC almost never listens there, so
-		// reusing it makes the AS-REQ always Unreachable. Reset Port to 0
-		// (a copy -- conn itself, used by the change adapter above, must
-		// stay untouched) so kerberosAdapter.Validate falls back to its own
-		// default KDC port (88).
-		//
-		// Known limitation: Conn has only one Port field, shared between
-		// the change adapter and this validate adapter, so a non-standard
-		// KDC port can't be expressed here.
-		validateConn.Port = 0
+		// reusing it makes the AS-REQ always Unreachable. validateConn is a
+		// copy (conn, used by the change adapter above, stays untouched)
+		// carrying the connection's KDC port; 0 makes kerberosAdapter.Validate
+		// fall back to its default (88).
+		validateConn.Port = int(job.GetConnection().GetKdcPort())
 	}
 	validateResult, validateDetail := va.Validate(ctx, validateConn, adapter.Cred{Username: current.Username, Password: newPassword})
 	validatePhase := toRotationPhase(validateResult)
