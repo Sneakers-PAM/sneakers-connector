@@ -185,6 +185,9 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 	if result == adapter.UntrustedCertificate {
 		logger.Warn("target certificate not trusted; the credential was not sent", log.F("protocol", protocol), log.F("detail", detail))
 	}
+	if result == adapter.CertificateMismatch {
+		logger.Warn("tls certificate matches none of the target's pins; the credential was not sent", log.F("protocol", protocol), log.F("detail", detail), log.F("pinned_certificates", len(conn.TLSPins)))
+	}
 	switch backoff, stopped := g.record(key, result, detail); {
 	case stopped:
 		logger.Warn("heartbeat stopped for this target until its host key is re-pinned", log.F("protocol", protocol))
@@ -336,6 +339,9 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 	if changeResult == adapter.UntrustedCertificate {
 		logger.Warn("rotation stopped: target certificate not trusted; nothing changed", log.F("protocol", protocol), log.F("detail", changeDetail))
 	}
+	if changeResult == adapter.CertificateMismatch {
+		logger.Warn("rotation stopped: tls certificate matches none of the target's pins; nothing changed", log.F("protocol", protocol), log.F("detail", changeDetail))
+	}
 
 	if changeResult == adapter.Refused {
 		logger.Warn("rotation refused: built-in Administrator account; nothing changed", log.F("reason", changeDetail))
@@ -416,8 +422,9 @@ func reportRotation(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceC
 }
 
 // toRotationPhase maps an adapter outcome onto the wire RotationPhase
-// reported to the vault. Unlike toHeartbeatResult, Invalid, Unreachable and
-// the two host-key refusals all map to FAILED: for rotation, a change or
+// reported to the vault. Unlike toHeartbeatResult, Invalid, Unreachable,
+// the two host-key refusals, an untrusted TLS certificate and a TLS
+// certificate pin mismatch all map to FAILED: for rotation, a change or
 // validation that couldn't be confirmed successful is a failure either way
 // (the vault must not treat an unreachable target as proof of anything),
 // never its own distinct phase.
@@ -425,7 +432,7 @@ func toRotationPhase(r adapter.Result) vaultv1.RotationPhase {
 	switch r {
 	case adapter.Valid:
 		return vaultv1.RotationPhase_ROTATION_PHASE_OK
-	case adapter.Invalid, adapter.Unreachable, adapter.HostKeyNotPinned, adapter.HostKeyMismatch, adapter.UntrustedCertificate:
+	case adapter.Invalid, adapter.Unreachable, adapter.HostKeyNotPinned, adapter.HostKeyMismatch, adapter.UntrustedCertificate, adapter.CertificateMismatch:
 		return vaultv1.RotationPhase_ROTATION_PHASE_FAILED
 	default:
 		return vaultv1.RotationPhase_ROTATION_PHASE_UNSPECIFIED
