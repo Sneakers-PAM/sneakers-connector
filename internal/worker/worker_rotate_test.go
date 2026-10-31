@@ -258,6 +258,42 @@ func TestRunRotationKerberosValidateGetsPortZero(t *testing.T) {
 	}
 }
 
+// TestRunRotationKerberosValidateUsesTheKdcPort proves a connection's KDC port
+// reaches post-rotation validation, and the change adapter keeps its own port.
+func TestRunRotationKerberosValidateUsesTheKdcPort(t *testing.T) {
+	origKerberos, ok := adapter.Get("kerberos")
+	if !ok {
+		t.Fatal("kerberos adapter not registered (adapter package init)")
+	}
+	fakeKerberos := &fakeAdapter{result: adapter.Valid}
+	adapter.Register("kerberos", fakeKerberos)
+	defer adapter.Register("kerberos", origKerberos)
+
+	const protocol = "worker-rotate-test-kdc-port"
+	changeAdapter := &fakeAdapter{rotateResult: adapter.Valid}
+	adapter.Register(protocol, changeAdapter)
+
+	job := &vaultv1.RotationJob{
+		SecretId: "sec-rot-kdc",
+		Connection: &vaultv1.HeartbeatConn{
+			Protocol: protocol,
+			Host:     "dc1.ad.example.org",
+			Port:     636,
+			UseTls:   true,
+			KdcPort:  1088,
+		},
+		Target: &vaultv1.HeartbeatTarget{Kind: "ad", Domain: "ad.example.org", Realm: "AD.EXAMPLE.ORG"},
+	}
+	runOnce(&fakeVaultClient{rotationJobs: []*vaultv1.RotationJob{job}})
+
+	if fakeKerberos.gotConn.Port != 1088 {
+		t.Fatalf("kerberos validate Conn.Port = %d, want the connection's KDC port 1088", fakeKerberos.gotConn.Port)
+	}
+	if changeAdapter.gotRotateConn.Port != 636 {
+		t.Fatalf("change adapter's Rotate Conn.Port = %d, want 636", changeAdapter.gotRotateConn.Port)
+	}
+}
+
 // TestRunRotationSkipsForUnregisteredProtocol proves an unhandled rotation
 // job is still reported (SKIPPED for both phases), not silently dropped,
 // and that no reveal is attempted for it.
