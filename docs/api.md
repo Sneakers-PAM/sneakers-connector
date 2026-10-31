@@ -92,6 +92,7 @@ the adapter is given:
 | Job field | Adapter field |
 |---|---|
 | `connection.host`, `connection.port` | host and port |
+| `connection.kdc_port` | the KDC port for validating a rotated password over Kerberos; 0 means 88 |
 | `connection.use_tls` | TLS on (LDAPS) |
 | `target.domain` | domain |
 | `target.realm` | Kerberos realm |
@@ -161,5 +162,5 @@ vault records it as a failed check without pausing the schedule.
 A rotation reports two phases. **Change** is the outcome of changing the password. **Validate** is
 the outcome of signing in with the new password, and runs only when the change succeeded;
 otherwise it is `SKIPPED` and the vault keeps the old credential. When the target has a realm, the
-new password is validated over Kerberos (on port 88) whatever protocol made the change, because an
+new password is validated over Kerberos (on the connection's `kdc_port`, or 88 when it's 0) whatever protocol made the change, because an
 AD LDAP bind may still accept the old password for a while after a change.
