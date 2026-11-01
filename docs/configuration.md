@@ -8,6 +8,8 @@ local defaults.
 | `VAULT_ADDR` | `localhost:9091` | The vault's gRPC address (`host:port`). The connection has no TLS of its own, so run it where the network or a mesh protects it. |
 | `GRPC_PORT` | `9090` | The port the health services listen on. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset (no export) | OTLP gRPC collector for traces and metrics, as a URL: `http://collector:4317` for plaintext, `https://collector:4317` for TLS. A bare `host:port` still connects as plaintext, but the OpenTelemetry SDK, which reads this variable too, logs `parse url` errors at start. Any other scheme stops the service at start. Unset or empty disables export cleanly; set it to opt in. |
+| `OTLP_LOGS_ENABLED` | unset (off) | `true` exports filtered logs to the same collector. Only JSON log lines are exported, stdout doesn't change, and any other value leaves it off. See [Exported logs](#exported-logs). |
+| `OTLP_INSECURE_SKIP_VERIFY` | unset (off) | `true` turns off certificate checks on an `https` collector, for a private certificate. Traces and metrics still flow, but logs stay off, because logs never go to a collector that isn't verified. |
 | `WORKLOAD_TOKEN_FILE` | (none) | Path to the workload token, a Kubernetes projected ServiceAccount token with audience `sneakers` (the chart mounts it at `/var/run/secrets/sneakers/token`). Sent on every vault call; see [Vault identity token](#vault-identity-token). When set, it wins over `CONNECTOR_TOKEN_FILE` and `CONNECTOR_DEV_TOKEN`. |
 | `CONNECTOR_TOKEN_FILE` | (none) | The older name for `WORKLOAD_TOKEN_FILE`, read only when that is unset. When set, it wins over `CONNECTOR_DEV_TOKEN`. |
 | `CONNECTOR_TOKEN_DIR` | `/var/run/secrets/` | The directory the token file must sit under. Must be absolute. Only read when a token file is set. |
@@ -17,6 +19,21 @@ local defaults.
 
 These are fixed in code: the poll interval (30 seconds), the batch size (20 heartbeat jobs and 20
 rotation jobs per poll), and the per-job time limits (20 seconds for a heartbeat, 30 for a rotation).
+
+## Exported logs
+
+Export is default-deny. A record carries its time, level, service and message, plus only the fields
+below. Anything else stays on stdout.
+
+- Exported as they are: `secret_id`, `result`, `error_code`, `error_class`, `backoff`, `pinned_keys`,
+  `pinned_certificates`, `builtin_administrator`, `admin_count`, `dependency`, `required`, `from`,
+  `to`, `port`.
+- Exported as their class only (`[string]`): `error`, `detail`, `reason`. Their text comes from the
+  systems the connector acts on and can echo a credential, so use `result` and `error_code` to
+  tell failures apart.
+
+`snk_` tokens are redacted from anything exported. The minimum level is info. `protocol` isn't
+exported, because a job can carry a name no adapter knows.
 
 ## Vault identity token
 
