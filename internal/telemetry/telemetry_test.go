@@ -6,7 +6,6 @@ package telemetry_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -187,18 +186,4 @@ func TestFailingCollectorDegradesAndStaysReady(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatal("never degraded")
-}
-
-func TestExportErrorHandlerHidesTextAndLimitsRate(t *testing.T) {
-	t.Setenv("LOG_FORMAT", "json")
-	var out bytes.Buffer
-	h := telemetry.ExportErrorHandler(log.NewLoggerWithOptions("connector", log.WithOutput(&out)))
-	h.Handle(errors.New("dial https://user:" + canary + "@collector.example:4317"))
-	h.Handle(errors.New("again"))
-	if strings.Contains(out.String(), canary) {
-		t.Fatalf("error text logged: %s", out.String())
-	}
-	if n := strings.Count(out.String(), "otlp export failed"); n != 1 {
-		t.Fatalf("logged %d lines, want 1", n)
-	}
 }

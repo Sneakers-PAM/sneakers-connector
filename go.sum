@@ -4,8 +4,8 @@ github.com/Bugs5382/go-buildinfo v1.1.0 h1:Iw0TfvDFwZVvuIlKe7/0bYcmZTp+4GoG2gpuY
 github.com/Bugs5382/go-buildinfo v1.1.0/go.mod h1:1YrfFNUmwTv+/+nH1AAWQagO1QWsNc5KzKHgOV7JR9k=
 github.com/Bugs5382/go-log v1.3.0 h1:lJv2iv6yL9l1Eqii62ArcJ1eoKbpLFdrY7L9gPNSqcI=
 github.com/Bugs5382/go-log v1.3.0/go.mod h1:OGgIWWKKNg2AXVJlbVJZb/s8dnqqsrKwWznYXik547E=
-github.com/Bugs5382/go-otel v1.5.0 h1:bI+jR3HbT6SO58SiDg2CfbavMgFNiv437ZBUDauc/Kg=
-github.com/Bugs5382/go-otel v1.5.0/go.mod h1:KiN6H/LzIrumq7MgAqwUVBYYYHf0r7CbU2bf64RNUa0=
+github.com/Bugs5382/go-otel v1.6.0 h1:cjptZM4h5jXzU6d3hLz2tGgPmN9blhxLVc81PmoWdNw=
+github.com/Bugs5382/go-otel v1.6.0/go.mod h1:dY2m4IIVbcK87lrMzPC92JJtGpgd2W3A6NBeCEidEKs=
 github.com/Bugs5382/go-workload-identity v1.0.1 h1:QRYOTohudQXO2AS3nU/FFyaq8LaIBCtVYNj9WGfrAdA=
 github.com/Bugs5382/go-workload-identity v1.0.1/go.mod h1:IICUaNuHp//d2wZhOh6SM4NFT9DU8VeBzz/f68s0ekA=
 github.com/alexbrainman/sspi v0.0.0-20250919150558-7d374ff0d59e h1:4dAU9FXIyQktpoUAgOJK3OTFc/xug0PCXYCqU0FgDKI=
@@ -17,6 +17,8 @@ github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XL
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeORc=
+github.com/felixge/httpsnoop v1.1.0/go.mod h1:Zqxgdd+1Rkcz8euOqdr7lqgCRJztwr5hp9vDSi5UZCE=
 github.com/go-asn1-ber/asn1-ber v1.5.8 h1:H9AZkK22UOmfX8J84ubyaZxKJZ3FMHVwn8swoMML7iQ=
 github.com/go-asn1-ber/asn1-ber v1.5.8/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
 github.com/go-ldap/ldap/v3 v3.4.14 h1:D6PYdEgsaVzsXyr6w/yDC06Ria4uUhWm+Rb+er8lfAs=
@@ -75,6 +77,8 @@ go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.70.0 h1:oECp5f+hN7nkwjU/8BxQ/q23bGPb8FIrD839owX222E=
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.70.0/go.mod h1:DqEFwLumhzMBDQv9PcWbyoDxHI/4lAk6CM4nJBH39sc=
+go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 h1:LMuyCAyfalSjDyjdC65nK6N0zoTT63+E/u95X0JovZI=
+go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0/go.mod h1:085m8qbm4hgc8rZWGDEa4vmyyo2c3nPxUslYUKUIU04=
 go.opentelemetry.io/otel v1.45.0 h1:pdrWmLHofpubmArBv1LgFSv1Z0Ie/ppdZzu+kUN5EeU=
 go.opentelemetry.io/otel v1.45.0/go.mod h1:XZxIqPapzEYnhNSScF5DIqXhm/rYi0FzCe2XddAwZfQ=
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.21.0 h1:WseeVYf5dJZTsyPiyW5L14k5qsSibqXAMTSiFEDiWr0=

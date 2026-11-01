@@ -1,8 +1,8 @@
 // Copyright 2026 The Sneakers-PAM Authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Package telemetry holds the connector's OTLP settings, the filters on its
-// exported logs, and the optional health dependency on the collector.
+// Package telemetry holds the connector's OTLP settings, the filters on what it
+// exports, and the optional health dependency on the collector.
 //
 // The filters are a default-deny list. This service's error text comes from
 // the systems it acts on and can echo a credential, so any field that can hold
@@ -16,15 +16,10 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"sync/atomic"
-	"time"
 
 	"github.com/Bugs5382/go-buildinfo/health"
-	log "github.com/Bugs5382/go-log"
 	otel "github.com/Bugs5382/go-otel"
 	"github.com/rs/zerolog"
-	otelapi "go.opentelemetry.io/otel"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -35,8 +30,6 @@ const (
 
 	// DependencyName is the health dependency for the collector.
 	DependencyName = "otlp"
-
-	exportErrorInterval = time.Minute
 )
 
 // AllowedLogFields are the fields an exported log record may carry.
@@ -64,6 +57,17 @@ var AllowedLogFields = []string{
 // hold a target system's text.
 var ClassOnlyLogFields = []string{"error", "detail", "reason"}
 
+// AllowedRPCAttributes are the attributes spans and metrics may carry. The
+// connector serves and calls gRPC only, so it emits no HTTP attributes.
+var AllowedRPCAttributes = []string{"rpc.method", "rpc.response.status_code"}
+
+var (
+	// rpcMethodPattern matches this service's own methods and the vault's.
+	rpcMethodPattern = regexp.MustCompile(`^sneakers\.[a-z]+\.v1\.[A-Za-z]+/[A-Za-z]+$`)
+	// healthMethodPattern matches the probes and the vault health check.
+	healthMethodPattern = regexp.MustCompile(`^grpc\.health\.v1\.Health/(Check|Watch)$`)
+)
+
 var tokenPattern = regexp.MustCompile(`\bsnk_[A-Za-z0-9_\-]+`)
 
 // Settings is the OTLP configuration from the environment.
@@ -87,6 +91,12 @@ func Load(endpoint string) Settings {
 func (s Settings) Options() []otel.Option {
 	return []otel.Option{
 		otel.WithInsecureSkipVerify(s.SkipVerify),
+		otel.WithTelemetryFilter(true),
+		otel.WithTraceAllowSpanNames(rpcMethodPattern, healthMethodPattern),
+		otel.WithAttributeValuePattern("rpc.method", rpcMethodPattern),
+		otel.WithTraceAllowAttributes(AllowedRPCAttributes...),
+		otel.WithMetricAllowAttributes(AllowedRPCAttributes...),
+		otel.WithBaggage(false),
 		otel.WithLogs(s.Logs),
 		otel.WithLogAllowFields(AllowedLogFields...),
 		otel.WithLogClassOnlyFields(ClassOnlyLogFields...),
@@ -114,22 +124,6 @@ func (s Settings) Zerolog(l zerolog.Logger, stdout io.Writer) zerolog.Logger {
 		return l
 	}
 	return l.Output(s.Output(stdout))
-}
-
-// ExportErrorHandler is an otel error handler that logs a stable code at most
-// once per interval. The error's text is never logged: it can hold the
-// endpoint or headers. The limit also stops a down collector from feeding its
-// own failures back through the exported log.
-func ExportErrorHandler(lg log.Logger) otelapi.ErrorHandler {
-	var next atomic.Int64
-	return otelapi.ErrorHandlerFunc(func(err error) {
-		now := time.Now().UnixNano()
-		last := next.Load()
-		if now < last || !next.CompareAndSwap(last, now+int64(exportErrorInterval)) {
-			return
-		}
-		lg.Warn("otlp export failed", log.F("error_code", status.Code(err).String()))
-	})
 }
 
 // ErrExportFailing is the otlp dependency's error. It holds no collector text.

@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/Bugs5382/go-buildinfo v1.1.0
 	github.com/Bugs5382/go-log v1.3.0
-	github.com/Bugs5382/go-otel v1.5.0
+	github.com/Bugs5382/go-otel v1.6.0
 	github.com/Bugs5382/go-workload-identity v1.0.1
 	github.com/go-ldap/ldap/v3 v3.4.14
 	github.com/jcmturner/gokrb5/v8 v8.4.4

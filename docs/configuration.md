@@ -35,6 +35,18 @@ below. Anything else stays on stdout.
 `snk_` tokens are redacted from anything exported. The minimum level is info. `protocol` isn't
 exported, because a job can carry a name no adapter knows.
 
+## Exported traces and metrics
+
+Export is default-deny too. No baggage comes in or goes out, and SDK errors print only a gRPC code.
+
+- Span names: this service's and the vault's gRPC methods and the gRPC health check. Any other span
+  stays in the trace, named `[span]`.
+- Span and metric attributes: `rpc.method`, when it's one of the `sneakers.*.v1` methods, and
+  `rpc.response.status_code`.
+- Resource: `service.name` only, whatever `OTEL_RESOURCE_ATTRIBUTES` says.
+
+Status text and exception events never leave, so a target's error text stays out of traces.
+
 ## Vault identity token
 
 Every call to the vault carries the connector's workload identity twice:

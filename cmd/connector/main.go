@@ -20,7 +20,6 @@ import (
 	"github.com/Sneakers-PAM/sneakers-connector/internal/tokensource"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/vaultclient"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/worker"
-	otelapi "go.opentelemetry.io/otel"
 	"google.golang.org/grpc"
 )
 
@@ -43,7 +42,6 @@ func main() {
 	tel := telemetry.Load(cfg.OTLPEndpoint)
 	logger = tel.Zerolog(logger, os.Stdout)
 	svcLog := log.NewLoggerWithOptions(serviceName, log.WithOutput(tel.Output(os.Stdout)))
-	otelapi.SetErrorHandler(telemetry.ExportErrorHandler(svcLog))
 
 	otelShutdown, err := otel.InitWithOptions(ctx, serviceName, cfg.OTLPEndpoint, tel.Options()...)
 	if err != nil {
