@@ -17,6 +17,7 @@ import (
 	log "github.com/Bugs5382/go-log"
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/adapter"
+	"google.golang.org/grpc/status"
 )
 
 // claimLimit bounds how many due heartbeat jobs are claimed per tick.
@@ -91,7 +92,7 @@ func tick(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, ide
 		Limit:    claimLimit,
 	})
 	if err != nil {
-		logger.Warn("claim due heartbeats", log.F("error", err.Error()))
+		logger.Warn("claim due heartbeats", log.F("error", err.Error()), log.F("error_code", status.Code(err).String()))
 		return
 	}
 
@@ -160,7 +161,7 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 		SecretId: job.GetSecretId(),
 	})
 	if err != nil {
-		logger.Warn("reveal for heartbeat", log.F("error", err.Error()))
+		logger.Warn("reveal for heartbeat", log.F("error", err.Error()), log.F("error_code", status.Code(err).String()))
 		return
 	}
 
@@ -183,10 +184,10 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 		logger.Warn("ssh host key refused", log.F("result", result.String()), log.F("detail", detail), log.F("pinned_keys", len(conn.HostKeys)))
 	}
 	if result == adapter.UntrustedCertificate {
-		logger.Warn("target certificate not trusted; the credential was not sent", log.F("protocol", protocol), log.F("detail", detail))
+		logger.Warn("target certificate not trusted; the credential was not sent", log.F("protocol", protocol), log.F("result", result.String()), log.F("detail", detail))
 	}
 	if result == adapter.CertificateMismatch {
-		logger.Warn("tls certificate matches none of the target's pins; the credential was not sent", log.F("protocol", protocol), log.F("detail", detail), log.F("pinned_certificates", len(conn.TLSPins)))
+		logger.Warn("tls certificate matches none of the target's pins; the credential was not sent", log.F("protocol", protocol), log.F("result", result.String()), log.F("detail", detail), log.F("pinned_certificates", len(conn.TLSPins)))
 	}
 	switch backoff, stopped := g.record(key, result, detail); {
 	case stopped:
@@ -217,7 +218,7 @@ func reportHeartbeat(ctx context.Context, lg log.Logger, vc vaultv1.VaultService
 	}
 	if _, err := vc.ReportHeartbeat(ctx, req); err != nil {
 		logger := lg.Ctx(ctx).With(log.F("secret_id", job.GetSecretId()))
-		logger.Warn("report heartbeat", log.F("error", err.Error()))
+		logger.Warn("report heartbeat", log.F("error", err.Error()), log.F("error_code", status.Code(err).String()))
 	}
 }
 
@@ -264,7 +265,7 @@ func rotationTick(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceCli
 		Limit:    rotationClaimLimit,
 	})
 	if err != nil {
-		logger.Warn("claim due rotations", log.F("error", err.Error()))
+		logger.Warn("claim due rotations", log.F("error", err.Error()), log.F("error_code", status.Code(err).String()))
 		return
 	}
 
@@ -312,7 +313,7 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 		SecretId: job.GetSecretId(),
 	})
 	if err != nil {
-		logger.Warn("reveal for rotation", log.F("error", err.Error()))
+		logger.Warn("reveal for rotation", log.F("error", err.Error()), log.F("error_code", status.Code(err).String()))
 		return
 	}
 	version := reveal.GetVersion()
@@ -335,14 +336,14 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 	changeResult, changeDetail := a.Rotate(ctx, conn, current, newPassword)
 	changePhase := toRotationPhase(changeResult)
 	if changeResult == adapter.UntrustedCertificate {
-		logger.Warn("rotation stopped: target certificate not trusted; nothing changed", log.F("protocol", protocol), log.F("detail", changeDetail))
+		logger.Warn("rotation stopped: target certificate not trusted; nothing changed", log.F("protocol", protocol), log.F("result", changeResult.String()), log.F("detail", changeDetail))
 	}
 	if changeResult == adapter.CertificateMismatch {
-		logger.Warn("rotation stopped: tls certificate matches none of the target's pins; nothing changed", log.F("protocol", protocol), log.F("detail", changeDetail))
+		logger.Warn("rotation stopped: tls certificate matches none of the target's pins; nothing changed", log.F("protocol", protocol), log.F("result", changeResult.String()), log.F("detail", changeDetail))
 	}
 
 	if changeResult == adapter.Refused {
-		logger.Warn("rotation refused: built-in Administrator account; nothing changed", log.F("reason", changeDetail))
+		logger.Warn("rotation refused: built-in Administrator account; nothing changed", log.F("result", changeResult.String()), log.F("reason", changeDetail))
 		reportRotation(ctx, lg, vc, identity, job, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, changeDetail, version, true)
 		return
 	}
@@ -411,7 +412,7 @@ func reportRotation(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceC
 	}
 	if _, err := vc.ReportRotation(ctx, req); err != nil {
 		logger := lg.Ctx(ctx).With(log.F("secret_id", job.GetSecretId()))
-		logger.Warn("report rotation", log.F("error", err.Error()))
+		logger.Warn("report rotation", log.F("error", err.Error()), log.F("error_code", status.Code(err).String()))
 	}
 }
 

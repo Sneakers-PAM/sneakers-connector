@@ -34,6 +34,7 @@ and only says the process is up.
 | Dependency | Required | Why |
 |---|---|---|
 | vault | yes | Every job the worker runs is claimed from the vault and reported back to it; without the vault the connector does nothing. Checked through the vault's own readiness on the worker's connection. |
+| otlp | no | The OpenTelemetry collector, listed only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set. It's down when the last export error on traces or metrics, or on logs when they're on, is newer than the last success. That shows as degraded and never fails readiness. Failed exports print a gRPC code to stderr at most once every 30 seconds, with no endpoint or headers. |
 
 There's no database dependency: `DATABASE_DSN` is read but nothing uses it, and the connector uses
 no message broker. A vault that is up but itself not ready (its database down) also makes the

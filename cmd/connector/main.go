@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/Sneakers-PAM/sneakers-connector/internal/config"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/grpcsvc"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/server"
+	"github.com/Sneakers-PAM/sneakers-connector/internal/telemetry"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/tokensource"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/vaultclient"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/worker"
@@ -37,7 +39,11 @@ func main() {
 		logger.Fatal().Err(err).Msg("config")
 	}
 
-	otelShutdown, err := otel.Init(ctx, serviceName, cfg.OTLPEndpoint)
+	tel := telemetry.Load(cfg.OTLPEndpoint)
+	logger = tel.Zerolog(logger, os.Stdout)
+	svcLog := log.NewLoggerWithOptions(serviceName, log.WithOutput(tel.Output(os.Stdout)))
+
+	otelShutdown, err := otel.InitWithOptions(ctx, serviceName, cfg.OTLPEndpoint, tel.Options()...)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("otel init")
 	}
@@ -58,7 +64,6 @@ func main() {
 		logger.Fatal().Err(err).Msg("connector token source")
 	}
 
-	svcLog := log.NewLogger(serviceName)
 	go worker.RunWithLogger(ctx, vc, tokens, pollInterval, svcLog)
 
 	logger.Info().Str("port", cfg.GRPCPort).Msg("starting")
@@ -68,7 +73,7 @@ func main() {
 	// emits an audit event.
 	// Readiness follows the vault: every job the worker runs is claimed from
 	// it and reported back to it. Liveness never asks.
-	checker, err := server.NewChecker(svcLog, []health.Dependency{server.Vault(vc.Conn())})
+	checker, err := server.NewChecker(svcLog, append([]health.Dependency{server.Vault(vc.Conn())}, tel.Dependencies()...))
 	if err != nil {
 		logger.Fatal().Err(err).Msg("health checker")
 	}
