@@ -73,13 +73,21 @@ func main() {
 	// emits an audit event.
 	// Readiness follows the vault: every job the worker runs is claimed from
 	// it and reported back to it. Liveness never asks.
-	checker, err := server.NewChecker(svcLog, append([]health.Dependency{server.Vault(vc.Conn())}, tel.Dependencies()...))
+	deps := append([]health.Dependency{server.Vault(vc.Conn())}, tel.Dependencies()...)
+	mode, authOpts, verifierDep := inboundAuth(ctx, svcLog)
+	if verifierDep != nil {
+		deps = append(deps, *verifierDep)
+	}
+	checker, err := server.NewChecker(svcLog, deps)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("health checker")
 	}
 	if err := server.RunWithHealth(ctx, cfg.GRPCPort, svcLog, checker, func(gs *grpc.Server) {
 		grpcsvc.Register(gs)
-	}); err != nil {
+		if mode != server.InboundOff {
+			grpcsvc.RegisterTLSScan(gs, grpcsvc.NewTLSScanServer(svcLog))
+		}
+	}, authOpts...); err != nil {
 		logger.Fatal().Err(err).Msg("server exited")
 	}
 }

@@ -14,6 +14,7 @@ schedule, the secret versions and the audit trail. Nothing is installed on the t
 - 🔐 **Self-service rotation:** the account changes its own password with its current one, so the connector needs no admin rights on the directory.
 - 🛡️ **Built-in Administrator guard:** the domain's RID 500 account is matched by objectSid, never by name, and is never rotated.
 - ✅ **Proven changes:** after an AD change, the new password is checked over Kerberos, which stops accepting the old one at once.
+- 📜 **Certificate pins:** LDAPS trusts a target's pinned certificate or issuing CA, and a scan reads a target's chain for a person to pin, so an enterprise CA works with nothing to upload.
 - 🤐 **No secrets in logs:** credentials and the worker token are never logged.
 
 ## 🚀 Run it

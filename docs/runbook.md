@@ -105,6 +105,12 @@ can be compared before re-pinning. A target with no usable pin keeps using the s
 publicly issued certificate needs no pin. The vault doesn't send TLS pins with jobs yet; until it
 does, every LDAPS target uses the system roots.
 
+The pin dialog reads a target's chain with the connector's `ScanTLSCertificate` (see
+[api.md](api.md#tls-certificate-scan)): one connection per scan, on demand, never on a schedule. It
+returns each certificate's subject, names, issuer, dates and SHA-256 fingerprint, and which of them
+would work as a pin. A scan stops after the server's certificates arrive, so the target sees an
+abandoned TLS handshake and nothing else.
+
 A certificate that fails the check any other way than a pin mismatch is reported as an untrusted
 certificate, never as unreachable: the target answered, and the credential was never sent. The
 detail starts with `untrusted certificate:` and names the first thing wrong, checked in this order:
@@ -161,6 +167,7 @@ line.
 
 The only other connection to a target that stops at the host key is the SSH broker's
 `ScanHostKey`, which the pin dialog calls on demand: one connection per scan, never on a schedule.
+The connector's own TLS scan is the same idea for certificates.
 
 ## Troubleshooting
 
@@ -177,6 +184,9 @@ The only other connection to a target that stops at the host key is the SSH brok
 | `rotation stopped: target certificate not trusted; nothing changed` (warn) | The same, on a rotation: the password wasn't changed. |
 | `tls certificate matches none of the target's pins; the credential was not sent` (warn) | The TLS target presented a certificate that isn't pinned and isn't signed by a pinned CA. `detail` names the presented and pinned fingerprints; re-pin the target or investigate. |
 | `rotation stopped: tls certificate matches none of the target's pins; nothing changed` (warn) | The same, on a rotation: the password wasn't changed. |
+| `TLS certificate scan off` (warn, at start) | No `WORKLOAD_OIDC_ISSUER` is set, so the scan isn't served and the pin dialog can't read certificates. Set the `WORKLOAD_*` variables (see configuration.md). |
+| `tls scan failed` (warn) | A scan couldn't read a chain: `outcome` is `unreachable` or `handshake_failed`. |
+| `tls scan refused` (warn) | A scan for something other than a person, or over the rate limit. |
 | `target unreachable; backing off` (warn) | The target couldn't be reached; `backoff` says how long until it is tried again. |
 | `heartbeat held: target not contacted` (info) | A heartbeat of a stopped or backing-off target, reported without a connection. |
 
