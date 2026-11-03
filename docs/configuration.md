@@ -6,7 +6,7 @@ local defaults.
 | Variable | Default | Meaning |
 |---|---|---|
 | `VAULT_ADDR` | `localhost:9091` | The vault's gRPC address (`host:port`). The connection has no TLS of its own, so run it where the network or a mesh protects it. |
-| `GRPC_PORT` | `9090` | The port the health services listen on. |
+| `GRPC_PORT` | `9090` | The port the health services and the TLS certificate scan listen on. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset (no export) | OTLP gRPC collector for traces and metrics, as a URL: `http://collector:4317` for plaintext, `https://collector:4317` for TLS. A bare `host:port` still connects as plaintext, but the OpenTelemetry SDK, which reads this variable too, logs `parse url` errors at start. Any other scheme stops the service at start. Unset or empty disables export cleanly; set it to opt in. |
 | `OTLP_LOGS_ENABLED` | unset (off) | `true` exports filtered logs to the same collector. Only JSON log lines are exported, stdout doesn't change, and any other value leaves it off. See [Exported logs](#exported-logs). |
 | `OTLP_INSECURE_SKIP_VERIFY` | unset (off) | `true` turns off certificate checks on an `https` collector, for a private certificate. Traces and metrics still flow, but logs stay off, because logs never go to a collector that isn't verified. |
@@ -14,6 +14,8 @@ local defaults.
 | `CONNECTOR_TOKEN_FILE` | (none) | The older name for `WORKLOAD_TOKEN_FILE`, read only when that is unset. When set, it wins over `CONNECTOR_DEV_TOKEN`. |
 | `CONNECTOR_TOKEN_DIR` | `/var/run/secrets/` | The directory the token file must sit under. Must be absolute. Only read when a token file is set. |
 | `CONNECTOR_DEV_TOKEN` | `dev-connector-token` | Static dev token, used only when no token file is set. The vault accepts it outside production only. |
+| `WORKLOAD_OIDC_ISSUER`, `WORKLOAD_ALLOWED_SERVICEACCOUNTS` | (none) | Turn on the TLS certificate scan, checking each caller's workload token; see [Callers of the scan](#callers-of-the-scan). Unset, the scan isn't served. |
+| `WORKLOAD_AUTH` | (none) | `disabled` serves the scan to any caller, for local development only. Set with an issuer, or to any other value, it stops the start. |
 | `CONNECTOR_TLS_INSECURE` | (unset) | `true` or `1` skips certificate checks on LDAPS. Only for a test directory with a self-signed certificate; never in production, because the connection carries the new password. |
 | `LOG_LEVEL`, `LOG_FORMAT` | `go-log` defaults | Log level and format. Local development uses `trace` and `console`; clusters log JSON. |
 
@@ -46,6 +48,22 @@ Export is default-deny too. No baggage comes in or goes out, and SDK errors prin
 - Resource: `service.name` only, whatever `OTEL_RESOURCE_ATTRIBUTES` says.
 
 Status text and exception events never leave, so a target's error text stays out of traces.
+
+## Callers of the scan
+
+The TLS certificate scan (see [api.md](api.md#tls-certificate-scan)) is the connector's only call
+that another service drives, and only the gateway may make it. It's served in one of three modes,
+read at start:
+
+| Settings | Mode |
+|---|---|
+| no `WORKLOAD_OIDC_ISSUER` and no `WORKLOAD_AUTH` | Off. The scan isn't served (`Unimplemented`), and the start logs `TLS certificate scan off` at warn. The connector runs as before. |
+| `WORKLOAD_OIDC_ISSUER` and `WORKLOAD_ALLOWED_SERVICEACCOUNTS` | Verified. A call must carry the gateway's projected ServiceAccount token (audience `WORKLOAD_AUDIENCE`, default `sneakers`) as `authorization: Bearer <token>`; the caller name is the service account without `sneakers-`, and only `gateway` may scan. Readiness waits for the issuer's key set (`workload-identity`, required). |
+| `WORKLOAD_AUTH=disabled` | Any caller may scan. Local development only; a warning is logged every 5 minutes. |
+
+The other `WORKLOAD_*` server settings (`WORKLOAD_OIDC_JWKS_URL`, `WORKLOAD_OIDC_CA_FILE`,
+`WORKLOAD_OIDC_BEARER_FILE`) are read as `github.com/Bugs5382/go-workload-identity` describes. The
+health services and reflection never need a token.
 
 ## Vault identity token
 

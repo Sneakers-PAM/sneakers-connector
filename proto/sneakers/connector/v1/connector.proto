@@ -1,0 +1,109 @@
+// Copyright 2026 The Sneakers-PAM Authors
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package sneakers.connector.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Sneakers-PAM/sneakers-connector/gen/go/sneakers/connector/v1;connectorv1";
+
+// ConnectorService is what the connector answers for the web app, through the
+// gateway only. Nothing here reveals or sends a credential.
+service ConnectorService {
+  // ScanTLSCertificate connects to a target over TLS, reads the certificate
+  // chain the server sends during the handshake and returns it, so a person
+  // can check a fingerprint and pin it on the target. The handshake is
+  // abandoned as soon as the chain arrives: no application data is sent, so
+  // nothing is bound or authenticated. Nothing is pinned by scanning. Bounded
+  // by a short timeout and a per-actor rate limit. People in the web app only.
+  rpc ScanTLSCertificate(ScanTLSCertificateRequest) returns (ScanTLSCertificateResponse);
+}
+
+// PrincipalKind mirrors sneakers.vault.v1.PrincipalKind (same names and
+// numbers). Only a person in the web app may scan, so the connector refuses
+// every kind but PRINCIPAL_KIND_HUMAN. The zero value is HUMAN, as in the
+// vault.
+// buf:lint:ignore ENUM_ZERO_VALUE_SUFFIX
+enum PrincipalKind {
+  PRINCIPAL_KIND_HUMAN = 0;
+  PRINCIPAL_KIND_SERVICE_ACCOUNT = 1;
+  PRINCIPAL_KIND_WORKLOAD = 2;
+  // A human's personal token (MCP or agent use).
+  PRINCIPAL_KIND_USER_TOKEN = 3;
+}
+
+// ActorContext identifies who the gateway is calling for. It mirrors
+// sneakers.vault.v1.ActorContext (same field numbers), as the SSH broker's
+// does, so the gateway fills it the same way.
+message ActorContext {
+  string user_id = 1;
+  bool is_site_admin = 2;
+  bool is_root = 3;
+  repeated string group_names = 4;
+  // Any kind but HUMAN is refused with PermissionDenied.
+  PrincipalKind principal_kind = 6;
+  string session_ref = 12;
+}
+
+message ScanTLSCertificateRequest {
+  // The target's host name. The certificate is checked against it, as the
+  // connector checks it on every LDAPS connection.
+  string host = 1;
+  // 0 means 636 (LDAPS).
+  int32 port = 2;
+  // The vault target being scanned, for the log and the rate limit, not authz.
+  string target_id = 3;
+  // The person scanning, for the log and the rate limit, not authz.
+  string actor_user_id = 4;
+  // Only PRINCIPAL_KIND_HUMAN is accepted.
+  ActorContext actor = 5;
+}
+
+message ScanTLSCertificateResponse {
+  // The address the connector connected to, as ip:port.
+  string address = 1;
+  // The host name the certificate was checked against (the request's host).
+  string server_name = 2;
+  // The negotiated protocol, e.g. "TLS 1.3".
+  string tls_version = 3;
+  // The certificates the server sent, in the order it sent them: the
+  // server's own certificate first, then any intermediates (and sometimes
+  // the root).
+  repeated ScannedCertificate chain = 4;
+  // Whether the chain verifies against the connector's system roots for
+  // host without a pin. When true, the target works without a pin.
+  bool system_trusted = 5;
+  // Why the chain doesn't verify against the system roots, worded as the
+  // heartbeat's untrusted-certificate detail. Empty when system_trusted.
+  string system_trust_detail = 6;
+  // Whether the server's certificate covers host.
+  bool host_name_matches = 7;
+}
+
+message ScannedCertificate {
+  // The full subject, e.g. "CN=dc01.ad.example.org,O=Example Org".
+  string subject = 1;
+  string common_name = 2;
+  // The subject alternative names.
+  repeated string dns_names = 3;
+  repeated string ip_addresses = 4;
+  // The full issuer.
+  string issuer = 5;
+  google.protobuf.Timestamp not_before = 6;
+  google.protobuf.Timestamp not_after = 7;
+  // The SHA-256 of the certificate's DER as 64 lower-case hex digits: the
+  // value a TLS pin is saved as and compared in.
+  string fingerprint_sha256 = 8;
+  // The serial number in hex.
+  string serial_number = 9;
+  bool is_ca = 10;
+  // Whether the certificate is signed by its own key (a root).
+  bool self_signed = 11;
+  // Whether pinning this fingerprint alone would let the connector trust the
+  // target right now: for the server's certificate, it is within its dates
+  // and covers host; for a CA certificate, it also signs the server's
+  // certificate through the chain sent. The page offers only these.
+  bool pinnable = 12;
+}

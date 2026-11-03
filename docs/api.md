@@ -1,7 +1,7 @@
 # API
 
-The connector has no API of its own for other services to drive. It is a client of the vault, and
-it serves only health checks.
+The connector is a client of the vault. Apart from its health checks, it serves one call of its own:
+the TLS certificate scan the web app's pin dialog uses, through the gateway only.
 
 ## What it serves
 
@@ -18,6 +18,9 @@ On `GRPC_PORT`:
 - `sneakers.common.v1.HealthService/Check`: answers `status: "SERVING"`. Defined in
   [proto/sneakers/common/v1/health.proto](../proto/sneakers/common/v1/health.proto).
 - gRPC server reflection.
+- `sneakers.connector.v1.ConnectorService/ScanTLSCertificate`, only when caller authentication is
+  configured (see [TLS certificate scan](#tls-certificate-scan)). Defined in
+  [proto/sneakers/connector/v1/connector.proto](../proto/sneakers/connector/v1/connector.proto).
 
 A `grpc.health.v1.Health/Check` answer carries the build in its response headers: `sneakers-version` (the image
 tag, `dev` when unstamped) and `sneakers-commit` (the source commit, `unknown` when neither the
@@ -40,6 +43,57 @@ a probe never waits on the vault and frequent probes don't load it. Right after 
 the first pass, each dependency is `down` with the class `pending`.
 
 `sneakers.common.v1.HealthService/Check` is unchanged and always answers `SERVING`.
+
+## TLS certificate scan
+
+`ScanTLSCertificate` connects to a target over TLS, reads the certificate chain the server sends,
+and abandons the handshake before the connector's `Finished` message, so no application data is
+sent and nothing is bound or authenticated. Nothing is pinned by a scan: the gateway saves the pin
+on the target in the vault once a person has confirmed it.
+
+Request:
+
+| Field | Meaning |
+|---|---|
+| `host` | The target's host name. The chain is checked against it, as on every LDAPS connection. |
+| `port` | The TLS port; `0` means 636 (LDAPS). |
+| `target_id` | The vault target, for the log and the rate limit. |
+| `actor_user_id` | The person scanning, for the log and the rate limit. |
+| `actor` | The person's `ActorContext`, mirroring `sneakers.vault.v1.ActorContext`. Any `principal_kind` but `PRINCIPAL_KIND_HUMAN` is refused. |
+
+Response:
+
+| Field | Meaning |
+|---|---|
+| `address` | The `ip:port` the connector connected to. |
+| `server_name` | The host name the chain was checked against. |
+| `tls_version` | The negotiated protocol, such as `TLS 1.3`. |
+| `chain` | The certificates in the order the server sent them, its own first. |
+| `system_trusted` | Whether the chain verifies against the system roots without a pin. A target like that needs no pin. |
+| `system_trust_detail` | Why not, worded like the untrusted-certificate heartbeat detail. |
+| `host_name_matches` | Whether the server's certificate covers `host`. |
+
+Each certificate in `chain` has `subject`, `common_name`, `dns_names`, `ip_addresses`, `issuer`,
+`not_before`, `not_after`, `serial_number` (hex), `is_ca`, `self_signed` and `fingerprint_sha256`:
+the SHA-256 of the certificate's DER as 64 lower-case hex digits, the form a pin is saved and
+compared in. `pinnable` says whether that fingerprint, pinned on its own, would make the connector
+trust the target now: the server's certificate when it's within its dates and covers `host`, and a
+CA certificate when it also signs the server's certificate through the chain sent. Pinning the
+issuing CA instead of the server's certificate keeps working when the server's certificate is
+renewed by the same CA.
+
+Errors:
+
+| Code | When |
+|---|---|
+| `Unauthenticated` | No workload token, or one that doesn't verify. |
+| `PermissionDenied` | A caller other than the gateway, or an actor that isn't a person. |
+| `InvalidArgument` | `host`, `target_id` or `actor_user_id` is empty, or `port` is out of range. |
+| `ResourceExhausted` | The person ran more than 5 scans in a row; one more is allowed every 12 seconds. |
+| `Unavailable` | `target unreachable` (DNS, refused, timeout), or `no TLS certificate offered` (the target answered but sent no certificate within 5 seconds). |
+
+Each scan is logged at info with the target, the person, the address and the server certificate's
+fingerprint; a refusal or failure is logged at warn. No certificate body is logged.
 
 ## What it calls on the vault
 

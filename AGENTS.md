@@ -8,7 +8,7 @@ hook-enforced rules). Keep this file current when the build, layout, or public A
 Sneakers connector: the agentless worker that tests and rotates stored credentials on their target
 systems. It polls the vault's connector API for due heartbeat and rotation jobs, reveals each
 credential, acts on the target through a protocol adapter (LDAP/LDAPS, Kerberos, SSH), and reports
-the outcome back. It serves only the health services. Before changing it, know that every job must
+the outcome back. It serves the health services and, for the gateway only, a TLS certificate scan. Before changing it, know that every job must
 end in a report (a skipped job is reported, not dropped, or the vault hands it out forever), that
 it never rotates the domain's built-in Administrator (RID 500, matched by `objectSid`), and that it
 never logs credential material or the worker token.
@@ -25,10 +25,11 @@ never logs credential material or the worker token.
 - `internal/vaultclient/` - the gRPC client for the vault; it sends the workload token on every call.
 - Service-to-service authentication (the token sent to the vault) comes from
   `github.com/Bugs5382/go-workload-identity`.
-- `internal/grpcsvc/` - the `sneakers.common.v1.HealthService` handler.
+- `internal/grpcsvc/` - the `sneakers.common.v1.HealthService` handler, the
+  `sneakers.connector.v1.ConnectorService` TLS certificate scan and its caller policy (gateway only).
 - `internal/config/`, `internal/server/` - the environment config and the gRPC server bootstrap,
   with the health service and readiness checks from `github.com/Bugs5382/go-buildinfo`.
-- `proto/` - the health API; `gen/go/` - the generated Go (committed, checked current in CI),
+- `proto/` - the health API and the connector API (`sneakers/connector/v1`); `gen/go/` - the generated Go (committed, checked current in CI),
   including the vault client stubs in `gen/go/thirdparty/vault/v1`, generated from the vault
   protos pinned in `proto-refs.env` (see docs/api.md, "Calling other services").
 - `docs/` - configuration, API and runbook.
