@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"slices"
 	"strconv"
@@ -48,21 +49,37 @@ func serve(t *testing.T, c *collectortest.Collector, f *fakeHealth) (*grpc.Clien
 	if err != nil {
 		t.Fatalf("init: %v", err)
 	}
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	port := strconv.Itoa(lis.Addr().(*net.TCPAddr).Port)
-	if err := lis.Close(); err != nil {
-		t.Fatal(err)
-	}
+	// The port is chosen by listening and closing, so another test process can
+	// take it before the server binds. Start on a fresh port when the server
+	// exits early, and return only once it accepts connections.
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() {
-		done <- server.RunWithLogger(ctx, port, log.Nop(), func(gs *grpc.Server) {
-			commonv1.RegisterHealthServiceServer(gs, f)
-		})
-	}()
+	var port string
+	var startErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		lis, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		port = strconv.Itoa(lis.Addr().(*net.TCPAddr).Port)
+		if err := lis.Close(); err != nil {
+			t.Fatal(err)
+		}
+		done = make(chan error, 1)
+		go func(done chan error) {
+			done <- server.RunWithLogger(ctx, port, log.Nop(), func(gs *grpc.Server) {
+				commonv1.RegisterHealthServiceServer(gs, f)
+			})
+		}(done)
+		if startErr = waitListening(port, done); startErr == nil {
+			break
+		}
+		t.Logf("server start attempt %d on port %s: %v", attempt+1, port, startErr)
+	}
+	if startErr != nil {
+		cancel()
+		t.Fatalf("server did not start: %v", startErr)
+	}
 	conn, err := grpc.NewClient("127.0.0.1:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
@@ -75,6 +92,26 @@ func serve(t *testing.T, c *collectortest.Collector, f *fakeHealth) (*grpc.Clien
 			t.Logf("shutdown: %v", err)
 		}
 	}
+}
+
+// waitListening returns nil once port accepts a connection, or the server's
+// own error if it exits first, or a timeout error after 10 seconds.
+func waitListening(port string, done <-chan error) error {
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-done:
+			return fmt.Errorf("server exited: %w", err)
+		default:
+		}
+		c, err := net.DialTimeout("tcp", "127.0.0.1:"+port, 200*time.Millisecond)
+		if err == nil {
+			_ = c.Close()
+			return nil
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return errors.New("not listening after 10s")
 }
 
 // call invokes method once the server is listening, and returns its error.
