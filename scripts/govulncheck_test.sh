@@ -4,6 +4,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 dir=scripts/testdata/govulncheck
+allow="$(mktemp)"
+trap 'rm -f "$allow"' EXIT
+printf 'GO-2026-6443\n' >"$allow"
+export GOVULNCHECK_ALLOW="$allow"
 fail=0
 expect() {
   local want=$1 file=$2
