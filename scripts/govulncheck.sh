@@ -8,10 +8,11 @@
 #   scripts/govulncheck.sh findings.json  # filter a saved -format json run
 #
 # GOVULNCHECK names the binary (default: govulncheck on PATH).
+# GOVULNCHECK_ALLOW names the allow list (default: govulncheck-allow.txt).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-allowed="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' govulncheck-allow.txt | grep -v '^$' || true)"
+allowed="$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "${GOVULNCHECK_ALLOW:-govulncheck-allow.txt}" | grep -v '^$' || true)"
 
 if [ "$#" -gt 0 ]; then
   json="$(cat "$1")"
