@@ -140,6 +140,7 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 		Domain:   job.GetTarget().GetDomain(),
 		Realm:    job.GetTarget().GetRealm(),
 		HostKeys: job.GetTarget().GetSshHostKeys(),
+		TLSPins:  job.GetTarget().GetTlsCertPins(),
 		Logon:    logonFormat(job.GetLogon()),
 	}
 
@@ -242,6 +243,8 @@ func toHeartbeatResult(r adapter.Result) vaultv1.HeartbeatResult {
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE
 	case adapter.UntrustedCertificate:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNTRUSTED_CERTIFICATE
+	case adapter.CertificateMismatch:
+		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_CERTIFICATE_MISMATCH
 	case adapter.HostKeyNotPinned:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_HOST_KEY_NOT_PINNED
 	case adapter.HostKeyMismatch:
@@ -328,6 +331,7 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 		Domain:   job.GetTarget().GetDomain(),
 		Realm:    job.GetTarget().GetRealm(),
 		HostKeys: job.GetTarget().GetSshHostKeys(),
+		TLSPins:  job.GetTarget().GetTlsCertPins(),
 		Logon:    logonFormat(job.GetLogon()),
 	}
 	current := adapter.Cred{

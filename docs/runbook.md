@@ -102,8 +102,8 @@ the target's certificate only when:
 A chain that matches no pin fails before the credential is sent. The detail names the presented
 fingerprints (the server's certificate first) and the pinned ones, so the old and new certificate
 can be compared before re-pinning. A target with no usable pin keeps using the system roots, so a
-publicly issued certificate needs no pin. The vault doesn't send TLS pins with jobs yet; until it
-does, every LDAPS target uses the system roots.
+publicly issued certificate needs no pin. The pins come with each job (`target.tls_cert_pins`), so a re-pin
+takes effect on the next job.
 
 The pin dialog reads a target's chain with the connector's `ScanTLSCertificate` (see
 [api.md](api.md#tls-certificate-scan)): one connection per scan, on demand, never on a schedule. It
