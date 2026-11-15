@@ -51,7 +51,9 @@ func newTargetGuard() *targetGuard {
 func guardKey(protocol string, c adapter.Conn) string {
 	pins := slices.Clone(c.HostKeys)
 	slices.Sort(pins)
-	return protocol + "|" + c.Host + "|" + strconv.Itoa(c.Port) + "|" + strings.Join(pins, "|")
+	tlsPins := slices.Clone(c.TLSPins)
+	slices.Sort(tlsPins)
+	return protocol + "|" + c.Host + "|" + strconv.Itoa(c.Port) + "|" + strings.Join(pins, "|") + "|tls:" + strings.Join(tlsPins, "|")
 }
 
 // hold reports whether the target must not be contacted now, with the result
