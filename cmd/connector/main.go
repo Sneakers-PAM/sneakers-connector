@@ -53,7 +53,7 @@ func main() {
 		}
 	}()
 
-	vc, err := vaultclient.Dial()
+	vc, err := vaultclient.Dial(svcLog)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("dial vault")
 	}

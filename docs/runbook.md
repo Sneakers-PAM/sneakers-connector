@@ -185,6 +185,8 @@ The connector's own TLS scan is the same idea for certificates.
 | `tls certificate matches none of the target's pins; the credential was not sent` (warn) | The TLS target presented a certificate that isn't pinned and isn't signed by a pinned CA. `detail` names the presented and pinned fingerprints; re-pin the target or investigate. |
 | `rotation stopped: tls certificate matches none of the target's pins; nothing changed` (warn) | The same, on a rotation: the password wasn't changed. |
 | `TLS certificate scan off` (warn, at start) | No `WORKLOAD_OIDC_ISSUER` is set, so the scan isn't served and the pin dialog can't read certificates. Set the `WORKLOAD_*` variables (see configuration.md). |
+| `vault call` (debug), `vault call failed` (warn) | Every outbound call to the vault, with `target`, `method`, `duration_ms` and the gRPC `code`. A failed call logs at warn. Requests and responses are never logged. |
+| `heartbeat job done`, `rotation job done` (info) | One line per job with `secret_id`, `protocol`, the result (`result`, or `change` and `validate` for a rotation) and `duration_ms`. No credential, token or detail text. |
 | `tls scan failed` (warn) | A scan couldn't read a chain: `outcome` is `unreachable` or `handshake_failed`. |
 | `tls scan refused` (warn) | A scan for something other than a person, or over the rate limit. |
 | `target unreachable; backing off` (warn) | The target couldn't be reached; `backoff` says how long until it is tried again. |
