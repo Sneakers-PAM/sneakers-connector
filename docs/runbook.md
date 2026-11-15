@@ -169,10 +169,25 @@ The only other connection to a target that stops at the host key is the SSH brok
 `ScanHostKey`, which the pin dialog calls on demand: one connection per scan, never on a schedule.
 The connector's own TLS scan is the same idea for certificates.
 
+### A certificate Go refuses to parse
+
+Some directories present a certificate Go's x509 parser rejects outright. The usual case is a Samba
+AD domain controller's self-generated LDAPS certificate, which has a negative serial number. The
+connection fails while the certificate is being read, so the heartbeat reports `UNREACHABLE` with a
+detail such as `x509: negative serial number`, not an untrusted-certificate result. Neither
+`CONNECTOR_TLS_INSECURE` nor a pin helps, because both act on a certificate that was already
+parsed.
+
+The fix is on the directory's side: issue the LDAPS certificate from the domain's CA, or use any
+certificate with a positive serial number, then pin or trust it as usual. The detail is shown
+wherever the check result is: the `sneakers_test_secret` MCP tool returns it, and the heartbeat
+pill's tooltip shows it.
+
 ## Troubleshooting
 
 | Log message | Meaning |
 |---|---|
+| `UNREACHABLE` result with `x509: negative serial number` in its detail | The target's LDAPS certificate can't be parsed. See "A certificate Go refuses to parse" above. |
 | `claim due heartbeats` or `claim due rotations` (warn) | The vault is unreachable, or refused the token. The error says which (`Unavailable`, `PermissionDenied`). |
 | `connector token file unusable` or `unavailable` (error, at start) | The token file is missing, unreadable or empty. |
 | `no adapter registered for protocol` (warn) | A job names a protocol the connector doesn't have; it is reported so the vault moves on. |
