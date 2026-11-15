@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/Bugs5382/go-log"
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"google.golang.org/grpc"
 )
@@ -58,14 +59,14 @@ func (c *tokenRecordingClient) ClaimDueRotations(_ context.Context, in *vaultv1.
 	return &vaultv1.ClaimDueRotationsResponse{}, nil
 }
 
-func TestRunWithSourceReadsTokenEveryTick(t *testing.T) {
+func TestRunWithLoggerReadsTokenEveryTick(t *testing.T) {
 	src := &seqSource{tokens: []string{"tok-a", "tok-b"}}
 	vc := &tokenRecordingClient{enoughRotation: make(chan struct{}), want: 2}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		RunWithSource(ctx, vc, src, time.Millisecond)
+		RunWithLogger(ctx, vc, src, time.Millisecond, log.Nop())
 		close(done)
 	}()
 

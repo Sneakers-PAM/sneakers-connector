@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/Bugs5382/go-log"
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/adapter"
 	"google.golang.org/grpc"
@@ -110,14 +111,14 @@ func (a *fakeAdapter) Rotate(_ context.Context, c adapter.Conn, current adapter.
 	return a.rotateResult, a.rotateDetail
 }
 
-// runOnce drives worker.Run for exactly one immediate tick: Run always
+// runOnce drives RunWithLogger for exactly one immediate tick: it always
 // processes one batch before entering its ticker loop, so a
 // pre-cancelled context makes the single tick deterministic (no reliance on
 // timing) while still exercising the real Run entrypoint.
 func runOnce(vc vaultv1.VaultServiceClient) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	Run(ctx, vc, "dev-connector-token", time.Hour)
+	RunWithLogger(ctx, vc, staticToken("dev-connector-token"), time.Hour, log.Nop())
 }
 
 func TestRunClaimsRevealsValidatesReportsInSequence(t *testing.T) {

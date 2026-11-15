@@ -33,16 +33,6 @@ const jobTimeout = 20 * time.Second
 // work per job (a write plus a validate, vs. just a validate).
 const rotJobTimeout = 30 * time.Second
 
-// Run polls vc for due heartbeat jobs and due rotation jobs, processing each
-// and reporting the result back to the vault, until ctx is cancelled. It
-// performs one poll of each immediately (rather than waiting a full
-// interval on startup) and then polls again every interval, rotation always
-// following heartbeat within the same tick. A single job's failure is
-// handled best-effort and never aborts the rest of the tick.
-func Run(ctx context.Context, vc vaultv1.VaultServiceClient, token string, interval time.Duration) {
-	RunWithSource(ctx, vc, staticToken(token), interval)
-}
-
 // TokenSource supplies the worker-identity token presented to the vault.
 type TokenSource interface {
 	Token() string
@@ -52,15 +42,15 @@ type staticToken string
 
 func (s staticToken) Token() string { return string(s) }
 
-// RunWithSource is Run with the token taken from src at the start of every
-// tick, so a token rotated underneath the connector is presented on the
-// next poll without a restart.
-func RunWithSource(ctx context.Context, vc vaultv1.VaultServiceClient, src TokenSource, interval time.Duration) {
-	RunWithLogger(ctx, vc, src, interval, log.Nop())
-}
-
-// RunWithLogger is RunWithSource with every job logged through lg, correlated
-// with the span in ctx. RunWithSource discards the logs.
+// RunWithLogger polls vc for due heartbeat jobs and due rotation jobs,
+// processing each and reporting the result back to the vault, until ctx is cancelled. It
+// performs one poll of each immediately (rather than waiting a full
+// interval on startup) and then polls again every interval, rotation always
+// following heartbeat within the same tick. A single job's failure is
+// handled best-effort and never aborts the rest of the tick.
+// Each job is logged through lg, correlated with the span in ctx. The token is
+// taken from src at the start of every tick, so a token rotated underneath the
+// connector is presented on the next poll without a restart.
 func RunWithLogger(ctx context.Context, vc vaultv1.VaultServiceClient, src TokenSource, interval time.Duration, lg log.Logger) {
 	g := newTargetGuard()
 	runTicks(ctx, lg, vc, src, g)

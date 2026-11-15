@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/Bugs5382/go-log"
 	"google.golang.org/grpc"
 )
 
@@ -34,7 +35,7 @@ func TestRun_GracefulShutdownOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		done <- Run(ctx, port, func(*grpc.Server) {})
+		done <- RunWithLogger(ctx, port, log.Nop(), func(*grpc.Server) {})
 	}()
 
 	// Give the server a moment to bind.

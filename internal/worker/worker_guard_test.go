@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/Bugs5382/go-log"
 	vaultv1 "github.com/Sneakers-PAM/sneakers-connector/gen/go/thirdparty/vault/v1"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/adapter"
 	"golang.org/x/crypto/ssh"
@@ -50,7 +51,7 @@ func (v *tickingVault) ClaimDueHeartbeats(ctx context.Context, in *vaultv1.Claim
 func runTicksN(fc *fakeVaultClient, n int, beforeTick func(int)) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	Run(ctx, &tickingVault{fakeVaultClient: fc, stopAfter: n, cancel: cancel, beforeTick: beforeTick}, "dev-connector-token", time.Millisecond)
+	RunWithLogger(ctx, &tickingVault{fakeVaultClient: fc, stopAfter: n, cancel: cancel, beforeTick: beforeTick}, staticToken("dev-connector-token"), time.Millisecond, log.Nop())
 }
 
 // setClock fixes the worker's clock at *at for the test.

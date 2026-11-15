@@ -25,19 +25,14 @@ import (
 // keep GracefulStop blocked indefinitely.
 const gracefulStopTimeout = 10 * time.Second
 
-// Run boots a gRPC server listening on :port, registers the health (always
+// RunWithLogger boots a gRPC server listening on :port, registers the health (always
 // ready; see RunWithHealth) and reflection services, calls register to attach caller-owned services, then
 // serves until ctx is cancelled. On cancellation it performs a graceful stop
 // and returns nil. A non-nil error indicates a fatal startup or serve failure.
 //
 // Optional grpc.ServerOptions (e.g. interceptors) are passed through to
-// grpc.NewServer; callers that pass none get the previous behaviour.
-func Run(ctx context.Context, port string, register func(*grpc.Server), opts ...grpc.ServerOption) error {
-	return RunWithLogger(ctx, port, log.Nop(), register, opts...)
-}
-
-// RunWithLogger is Run with lg logging the panics the recovery interceptors
-// catch. Run itself discards them.
+// grpc.NewServer; callers that pass none get the previous behaviour. lg logs the panics the
+// recovery interceptors catch.
 func RunWithLogger(ctx context.Context, port string, lg log.Logger, register func(*grpc.Server), opts ...grpc.ServerOption) error {
 	return RunWithHealth(ctx, port, lg, nil, register, opts...)
 }
