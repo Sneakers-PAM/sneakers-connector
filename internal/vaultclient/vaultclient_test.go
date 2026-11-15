@@ -5,6 +5,7 @@ package vaultclient
 
 import (
 	"context"
+	log "github.com/Bugs5382/go-log"
 	"net"
 	"os"
 	"path/filepath"
@@ -75,7 +76,7 @@ func TestDialSendsWorkloadTokenOnEveryCall(t *testing.T) {
 	tokFile := filepath.Join(t.TempDir(), "token")
 	writeToken(t, tokFile, "token-one")
 
-	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr, EnvWorkloadTokenFile: tokFile}))
+	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr, EnvWorkloadTokenFile: tokFile}), log.Nop())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -98,7 +99,7 @@ func TestDialAcceptsConnectorTokenFileAsAlias(t *testing.T) {
 	tokFile := filepath.Join(t.TempDir(), "token")
 	writeToken(t, tokFile, "alias-token")
 
-	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr, EnvConnectorTokenFile: tokFile}))
+	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr, EnvConnectorTokenFile: tokFile}), log.Nop())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -117,7 +118,7 @@ func TestDialPrefersWorkloadTokenFileOverAlias(t *testing.T) {
 	writeToken(t, workload, "workload-token")
 	writeToken(t, alias, "alias-token")
 
-	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr, EnvWorkloadTokenFile: workload, EnvConnectorTokenFile: alias}))
+	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr, EnvWorkloadTokenFile: workload, EnvConnectorTokenFile: alias}), log.Nop())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestDialPrefersWorkloadTokenFileOverAlias(t *testing.T) {
 func TestDialWithoutTokenFileSendsNoAuthorization(t *testing.T) {
 	addr, rec := startVault(t)
 
-	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr}))
+	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr}), log.Nop())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -146,7 +147,7 @@ func TestDialWithoutTokenFileSendsNoAuthorization(t *testing.T) {
 
 func TestDialRefusesUnreadableTokenFile(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing")
-	if _, err := dial(envOf(map[string]string{EnvWorkloadTokenFile: missing})); err == nil {
+	if _, err := dial(envOf(map[string]string{EnvWorkloadTokenFile: missing}), log.Nop()); err == nil {
 		t.Fatal("dial with a missing token file succeeded, want an error")
 	}
 }
@@ -160,7 +161,7 @@ func TestConnReachesTheVault(t *testing.T) {
 	}
 	go func() { _ = gs.Serve(ln) }()
 	t.Cleanup(gs.Stop)
-	c, err := dial(envOf(map[string]string{"VAULT_ADDR": ln.Addr().String()}))
+	c, err := dial(envOf(map[string]string{"VAULT_ADDR": ln.Addr().String()}), log.Nop())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
