@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/Bugs5382/go-buildinfo/health"
@@ -46,6 +47,17 @@ func RunWithLogger(ctx context.Context, port string, lg log.Logger, register fun
 // check's service "" answers NOT_SERVING while a required dependency is down.
 // Service "liveness" always answers SERVING. A nil checker is always ready.
 func RunWithHealth(ctx context.Context, port string, lg log.Logger, checker *health.Checker, register func(*grpc.Server), opts ...grpc.ServerOption) error {
+	return RunWithHealthPort(ctx, port, "", lg, checker, register, opts...)
+}
+
+// RunWithHealthPort is RunWithHealth that also serves a plain, health-only
+// gRPC port when healthPort is not empty. The kubelet's gRPC probe cannot
+// present a client certificate, so with mutual TLS on the main port (opts
+// carries the TLS credentials) the probe uses this one. It registers the
+// standard health service only: no reflection, none of register's services,
+// and none of the caller's opts (so no TLS and no caller authentication on
+// it). Both ports share one readiness answer and stop together.
+func RunWithHealthPort(ctx context.Context, port, healthPort string, lg log.Logger, checker *health.Checker, register func(*grpc.Server), opts ...grpc.ServerOption) error {
 	hs, bi, err := newHealth(checker)
 	if err != nil {
 		return fmt.Errorf("health: %w", err)
@@ -53,6 +65,13 @@ func RunWithHealth(ctx context.Context, port string, lg log.Logger, checker *hea
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
+	}
+	var healthLis net.Listener
+	if healthPort != "" {
+		if healthLis, err = net.Listen("tcp", ":"+healthPort); err != nil {
+			_ = lis.Close()
+			return fmt.Errorf("listen health port: %w", err)
+		}
 	}
 
 	// Build the default ServerOptions, prepended before caller-supplied opts.
@@ -78,6 +97,7 @@ func RunWithHealth(ctx context.Context, port string, lg log.Logger, checker *hea
 		grpc.ChainUnaryInterceptor(RecoveryUnaryInterceptor(lg), bi.UnaryServerInterceptor(), reportUnaryInterceptor(checker)),
 		grpc.ChainStreamInterceptor(RecoveryStreamInterceptor(lg), bi.StreamServerInterceptor()),
 	}
+	healthOpts := append([]grpc.ServerOption(nil), defaults...)
 	opts = append(defaults, opts...)
 
 	s := grpc.NewServer(opts...)
@@ -94,32 +114,65 @@ func RunWithHealth(ctx context.Context, port string, lg log.Logger, checker *hea
 		go checker.Run(biCtx)
 	}
 
-	errCh := make(chan error, 1)
-	go func() {
-		if err := s.Serve(lis); err != nil {
-			errCh <- err
-			return
-		}
-		errCh <- nil
-	}()
+	servers := []*grpc.Server{s}
+	errCh := make(chan error, 2)
+	go serveOn(s, lis, errCh)
+	if healthLis != nil {
+		hsrv := grpc.NewServer(healthOpts...)
+		healthpb.RegisterHealthServer(hsrv, hs)
+		servers = append(servers, hsrv)
+		lg.Info("serving plain health-only port", log.F("port", healthPort))
+		go serveOn(hsrv, healthLis, errCh)
+	}
 
 	select {
 	case <-ctx.Done():
 		hs.Shutdown()
-		stopped := make(chan struct{})
-		go func() {
-			s.GracefulStop()
-			close(stopped)
-		}()
-		select {
-		case <-stopped:
-		case <-time.After(gracefulStopTimeout):
-			s.Stop()
-		}
-		<-errCh
+		stopServers(servers, errCh)
 		return nil
 	case err := <-errCh:
+		// One listener failed: stop the other and report the failure.
+		for _, srv := range servers {
+			srv.Stop()
+		}
 		return err
+	}
+}
+
+// serveOn serves srv on lis and sends the outcome (nil after a stop) to errCh.
+func serveOn(srv *grpc.Server, lis net.Listener, errCh chan<- error) {
+	if err := srv.Serve(lis); err != nil {
+		errCh <- err
+		return
+	}
+	errCh <- nil
+}
+
+// stopServers stops every server gracefully, forcing the stop after
+// gracefulStopTimeout, then collects each Serve's outcome from errCh.
+func stopServers(servers []*grpc.Server, errCh <-chan error) {
+	stopped := make(chan struct{})
+	go func() {
+		var wg sync.WaitGroup
+		for _, srv := range servers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				srv.GracefulStop()
+			}()
+		}
+		wg.Wait()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(gracefulStopTimeout):
+		for _, srv := range servers {
+			srv.Stop()
+		}
+	}
+	for range servers {
+		<-errCh
 	}
 }
 

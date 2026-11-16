@@ -27,6 +27,7 @@ never logs credential material or the worker token.
   `github.com/Bugs5382/go-workload-identity`.
 - `internal/grpcsvc/` - the `sneakers.common.v1.HealthService` handler, the
   `sneakers.connector.v1.ConnectorService` TLS certificate scan and its caller policy (gateway only).
+- Mutual TLS comes from `github.com/Bugs5382/go-mtls` (`MTLS_*` files, plaintext when unset; plain health-only port `MTLS_HEALTH_PORT`); `internal/mtlstest` makes test CAs and certificates.
 - `internal/config/`, `internal/server/` - the environment config and the gRPC server bootstrap,
   with the health service and readiness checks from `github.com/Bugs5382/go-buildinfo`.
 - `proto/` - the health API and the connector API (`sneakers/connector/v1`); `gen/go/` - the generated Go (committed, checked current in CI),

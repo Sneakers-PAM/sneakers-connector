@@ -5,8 +5,10 @@ local defaults.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `VAULT_ADDR` | `localhost:9091` | The vault's gRPC address (`host:port`). The connection has no TLS of its own, so run it where the network or a mesh protects it. |
+| `VAULT_ADDR` | `localhost:9091` | The vault's gRPC address (`host:port`). The connection has no TLS of its own unless the `MTLS_*` files are set, so otherwise run it where the network or a mesh protects it. |
 | `GRPC_PORT` | `9090` | The port the health services and the TLS certificate scan listen on. |
+| `MTLS_CERT_FILE`, `MTLS_KEY_FILE`, `MTLS_CA_FILE` | unset (plaintext) | The connector's certificate (with any chain), its key, and the CA that signs every service in the cluster. With all three set, `GRPC_PORT` requires a client certificate (TLS 1.3) and the connection to the vault presents one and verifies the vault's. With none set both stay plaintext. Setting only some stops the start. A renewed file is picked up without a restart. See [Mutual TLS](runbook.md#mutual-tls). |
+| `MTLS_HEALTH_PORT` | (none) | A second, plaintext gRPC port that serves only the standard health service (no reflection, no scan), for the kubelet probe, which cannot present a client certificate. Required when the three files are set, and it must differ from `GRPC_PORT`. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset (no export) | OTLP gRPC collector for traces and metrics, as a URL: `http://collector:4317` for plaintext, `https://collector:4317` for TLS. A bare `host:port` still connects as plaintext, but the OpenTelemetry SDK, which reads this variable too, logs `parse url` errors at start. Any other scheme stops the service at start. Unset or empty disables export cleanly; set it to opt in. |
 | `OTLP_LOGS_ENABLED` | unset (off) | `true` exports filtered logs to the same collector. Only JSON log lines are exported, stdout doesn't change, and any other value leaves it off. See [Exported logs](#exported-logs). |
 | `OTLP_INSECURE_SKIP_VERIFY` | unset (off) | `true` turns off certificate checks on an `https` collector, for a private certificate. Traces and metrics still flow, but logs stay off, because logs never go to a collector that isn't verified. |

@@ -12,6 +12,7 @@ import (
 
 	"github.com/Bugs5382/go-buildinfo/health"
 	log "github.com/Bugs5382/go-log"
+	mtls "github.com/Bugs5382/go-mtls"
 	otel "github.com/Bugs5382/go-otel"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/config"
 	"github.com/Sneakers-PAM/sneakers-connector/internal/grpcsvc"
@@ -53,7 +54,28 @@ func main() {
 		}
 	}()
 
-	vc, err := vaultclient.Dial(svcLog)
+	// Mutual TLS is on when the three MTLS_* files are set (config.Load stops
+	// a partial setting). The same provider serves the gRPC port and dials
+	// the vault; with none set both stay plaintext, as before.
+	var (
+		dialOpts   []grpc.DialOption
+		serverOpts []grpc.ServerOption
+	)
+	if cfg.MTLSEnabled {
+		mp, err := mtls.NewProvider(cfg.MTLSFiles, mtls.WithErrorHandler(func(err error) {
+			svcLog.Error(err, "mtls: certificate reload failed; the last good certificate stays in use")
+		}))
+		if err != nil {
+			logger.Fatal().Err(err).Msg("mtls files")
+		}
+		dialOpts = append(dialOpts, mp.DialOption())
+		serverOpts = append(serverOpts, mp.ServerOption())
+		svcLog.Info("mutual TLS on", log.F("grpc_port", cfg.GRPCPort), log.F("health_port", cfg.MTLSHealthPort))
+	} else {
+		svcLog.Info("mutual TLS off: the gRPC port and the vault connection are plaintext")
+	}
+
+	vc, err := vaultclient.Dial(svcLog, dialOpts...)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("dial vault")
 	}
@@ -82,12 +104,12 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("health checker")
 	}
-	if err := server.RunWithHealth(ctx, cfg.GRPCPort, svcLog, checker, func(gs *grpc.Server) {
+	if err := server.RunWithHealthPort(ctx, cfg.GRPCPort, cfg.MTLSHealthPort, svcLog, checker, func(gs *grpc.Server) {
 		grpcsvc.Register(gs)
 		if mode != server.InboundOff {
 			grpcsvc.RegisterTLSScan(gs, grpcsvc.NewTLSScanServer(svcLog))
 		}
-	}, authOpts...); err != nil {
+	}, append(serverOpts, authOpts...)...); err != nil {
 		logger.Fatal().Err(err).Msg("server exited")
 	}
 }
