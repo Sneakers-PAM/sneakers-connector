@@ -19,17 +19,18 @@ type Config struct {
 	// dials over mutual TLS. With none set the connector stays plaintext.
 	MTLSEnabled bool
 	MTLSFiles   mtls.Files
-	// MTLSHealthPort is the plain, health-only gRPC port the kubelet probe
-	// uses, because it cannot present a client certificate. Required when
-	// mTLS is on.
-	MTLSHealthPort string
+	// HealthPort is the plain, health-only gRPC port the kubelet probe uses
+	// when mTLS is on, because it cannot present a client certificate. It is
+	// read from HEALTH_PORT like the other services, with MTLS_HEALTH_PORT as
+	// a fallback alias for one release.
+	HealthPort string
 }
 
 func Load() (Config, error) {
 	c := Config{
-		GRPCPort:       getOr("GRPC_PORT", "9090"),
-		OTLPEndpoint:   os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
-		MTLSHealthPort: os.Getenv("MTLS_HEALTH_PORT"),
+		GRPCPort:     getOr("GRPC_PORT", "9090"),
+		OTLPEndpoint: os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+		HealthPort:   getOr("HEALTH_PORT", getOr("MTLS_HEALTH_PORT", "9091")),
 	}
 	if err := c.loadMTLS(); err != nil {
 		return Config{}, err
@@ -54,11 +55,8 @@ func (c *Config) loadMTLS() error {
 	if err != nil {
 		return err
 	}
-	if c.MTLSHealthPort == "" {
-		return fmt.Errorf("MTLS_HEALTH_PORT is required when mTLS is on: the kubelet probe cannot present a client certificate")
-	}
-	if c.MTLSHealthPort == c.GRPCPort {
-		return fmt.Errorf("MTLS_HEALTH_PORT %q is the same as GRPC_PORT; the health port must be plaintext and separate", c.MTLSHealthPort)
+	if c.HealthPort == c.GRPCPort {
+		return fmt.Errorf("HEALTH_PORT %q is the same as GRPC_PORT; the health port must be plaintext and separate", c.HealthPort)
 	}
 	c.MTLSEnabled = true
 	c.MTLSFiles = files

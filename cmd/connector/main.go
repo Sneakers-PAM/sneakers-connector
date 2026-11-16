@@ -70,7 +70,7 @@ func main() {
 		}
 		dialOpts = append(dialOpts, mp.DialOption())
 		serverOpts = append(serverOpts, mp.ServerOption())
-		svcLog.Info("mutual TLS on", log.F("grpc_port", cfg.GRPCPort), log.F("health_port", cfg.MTLSHealthPort))
+		svcLog.Info("mutual TLS on", log.F("grpc_port", cfg.GRPCPort), log.F("health_port", cfg.HealthPort))
 	} else {
 		svcLog.Info("mutual TLS off: the gRPC port and the vault connection are plaintext")
 	}
@@ -104,7 +104,7 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("health checker")
 	}
-	if err := server.RunWithHealthPort(ctx, cfg.GRPCPort, cfg.MTLSHealthPort, svcLog, checker, func(gs *grpc.Server) {
+	if err := server.RunWithHealthPort(ctx, cfg.GRPCPort, cfg.HealthPort, svcLog, checker, func(gs *grpc.Server) {
 		grpcsvc.Register(gs)
 		if mode != server.InboundOff {
 			grpcsvc.RegisterTLSScan(gs, grpcsvc.NewTLSScanServer(svcLog))
