@@ -12,6 +12,7 @@ import (
 
 	buildinfo "github.com/Bugs5382/go-buildinfo"
 	"github.com/Bugs5382/go-buildinfo/health"
+	log "github.com/Bugs5382/go-log"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -33,7 +34,7 @@ func TestRun_HealthCheckReportsBuild(t *testing.T) {
 	port := freePort(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- Run(ctx, port, nil) }()
+	go func() { done <- RunWithLogger(ctx, port, log.Nop(), nil) }()
 	t.Cleanup(func() { cancel(); <-done })
 
 	conn, err := grpc.NewClient("127.0.0.1:"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))

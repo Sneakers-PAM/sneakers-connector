@@ -39,7 +39,7 @@ const (
 // Client wraps the dialled gRPC connection alongside the generated vault
 // client so callers get one value to hold and Close, while still satisfying
 // vaultv1.VaultServiceClient directly (via the embedded interface) for
-// passing into worker.Run.
+// passing into worker.RunWithLogger.
 type Client struct {
 	conn *grpc.ClientConn
 	vaultv1.VaultServiceClient
