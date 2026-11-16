@@ -47,7 +47,8 @@ type Client struct {
 
 // Dial connects to VAULT_ADDR (env, default localhost:9091) with insecure
 // transport credentials (the connection carries no TLS of its own; run it
-// where the network or a mesh protects it) plus the OTel client stats
+// where the network or a mesh protects it) unless extra replaces them, as
+// go-mtls's DialOption does to dial over mutual TLS plus the OTel client stats
 // handler so outbound calls are traced. Every call carries the workload
 // token from WORKLOAD_TOKEN_FILE (or CONNECTOR_TOKEN_FILE) as
 // "authorization: Bearer <token>", re-read on each call. With neither set no
@@ -57,9 +58,11 @@ type Client struct {
 // with its target, method, duration and gRPC code (a failed call at warn);
 // request and response bodies are never logged, since a reveal carries a
 // credential.
-func Dial(lg log.Logger) (*Client, error) { return dial(os.Getenv, lg) }
+func Dial(lg log.Logger, extra ...grpc.DialOption) (*Client, error) {
+	return dial(os.Getenv, lg, extra...)
+}
 
-func dial(getenv func(string) string, lg log.Logger) (*Client, error) {
+func dial(getenv func(string) string, lg log.Logger, extra ...grpc.DialOption) (*Client, error) {
 	addr := getenv("VAULT_ADDR")
 	if addr == "" {
 		addr = defaultAddr
@@ -71,6 +74,9 @@ func dial(getenv func(string) string, lg log.Logger) (*Client, error) {
 		grpc.WithChainUnaryInterceptor(buildUnaryInterceptor(version, commit), logUnaryInterceptor(lg)),
 		grpc.WithChainStreamInterceptor(buildStreamInterceptor(version, commit), logStreamInterceptor(lg)),
 	}
+	// extra comes last, so mutual TLS credentials (go-mtls's DialOption)
+	// replace the plaintext ones above.
+	opts = append(opts, extra...)
 	tokenOpt, ok, err := workloadauth.DialOptionFromEnv(tokenFileAlias(getenv))
 	if err != nil {
 		return nil, fmt.Errorf("vault workload token: %w", err)
