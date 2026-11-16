@@ -12,7 +12,7 @@ At start the connector:
 4. loads the worker token: the file at `WORKLOAD_TOKEN_FILE` (or `CONNECTOR_TOKEN_FILE`), or the
    dev token;
 5. starts the worker, which polls straight away and then every 30 seconds;
-6. serves the health services on `GRPC_PORT` (and on `MTLS_HEALTH_PORT` too, when mutual TLS is on).
+6. serves the health services on `GRPC_PORT` (and on `HEALTH_PORT` too, when mutual TLS is on).
 
 A failure in steps 1 to 4 (a missing `DATABASE_DSN`, a malformed `VAULT_ADDR`, a token file path
 outside the rules, or a missing or empty token file), or a server error, is logged at fatal level
@@ -30,13 +30,13 @@ service's cert-manager Secret), the connector uses [go-mtls](https://github.com/
   scan) still apply after it.
 - The connection to the vault presents the connector's certificate and verifies the vault's against
   the CA and the host name in `VAULT_ADDR`. There is no way to skip the check.
-- `MTLS_HEALTH_PORT` is a plaintext port that serves the standard gRPC health service and nothing
+- `HEALTH_PORT` (default `9091`) is a plaintext port that serves the standard gRPC health service and nothing
   else, because the kubelet's gRPC probe cannot present a certificate. Point the probes there.
 - A renewed certificate is read on the next handshake, with no restart. A renewal that can't be
   read leaves the last good one in use and logs `mtls: certificate reload failed`.
 
 The start log says `mutual TLS on` or `mutual TLS off`. Setting only some of the three files, an
-unreadable file, a missing `MTLS_HEALTH_PORT` or one equal to `GRPC_PORT` stops the start with the
+unreadable file, a `HEALTH_PORT` equal to `GRPC_PORT` stops the start with the
 reason. Replacing the root CA is a manual step; see go-mtls's rotation notes.
 
 ## Health

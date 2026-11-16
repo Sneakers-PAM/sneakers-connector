@@ -15,7 +15,8 @@ func setMTLS(t *testing.T, cert, key, ca, healthPort string) {
 	t.Setenv("MTLS_CERT_FILE", cert)
 	t.Setenv("MTLS_KEY_FILE", key)
 	t.Setenv("MTLS_CA_FILE", ca)
-	t.Setenv("MTLS_HEALTH_PORT", healthPort)
+	t.Setenv("HEALTH_PORT", healthPort)
+	t.Setenv("MTLS_HEALTH_PORT", "")
 }
 
 func TestLoadMTLSIsOffWhenNothingIsSet(t *testing.T) {
@@ -27,8 +28,8 @@ func TestLoadMTLSIsOffWhenNothingIsSet(t *testing.T) {
 	if c.MTLSEnabled {
 		t.Fatal("mTLS on with no files set")
 	}
-	if c.MTLSHealthPort != "" {
-		t.Fatalf("MTLSHealthPort = %q, want empty", c.MTLSHealthPort)
+	if c.HealthPort != "9091" {
+		t.Fatalf("HealthPort = %q, want the default 9091", c.HealthPort)
 	}
 }
 
@@ -45,8 +46,8 @@ func TestLoadMTLSReadsTheFilesAndTheHealthPort(t *testing.T) {
 	if c.MTLSFiles != want {
 		t.Fatalf("MTLSFiles = %+v, want %+v", c.MTLSFiles, want)
 	}
-	if c.MTLSHealthPort != "9190" {
-		t.Fatalf("MTLSHealthPort = %q", c.MTLSHealthPort)
+	if c.HealthPort != "9190" {
+		t.Fatalf("HealthPort = %q", c.HealthPort)
 	}
 }
 
@@ -61,14 +62,38 @@ func TestLoadMTLSPartialConfigurationStopsTheStart(t *testing.T) {
 	}
 }
 
-func TestLoadMTLSNeedsAHealthPort(t *testing.T) {
+func TestLoadMTLSHealthPortDefaultsTo9091(t *testing.T) {
 	setMTLS(t, "/etc/mtls/tls.crt", "/etc/mtls/tls.key", "/etc/mtls/ca.crt", "")
-	_, err := Load()
-	if err == nil {
-		t.Fatal("mTLS without MTLS_HEALTH_PORT loaded without error")
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
 	}
-	if !strings.Contains(err.Error(), "MTLS_HEALTH_PORT") {
-		t.Fatalf("error does not name MTLS_HEALTH_PORT: %v", err)
+	if c.HealthPort != "9091" {
+		t.Fatalf("HealthPort = %q, want 9091", c.HealthPort)
+	}
+}
+
+func TestLoadMTLSHealthPortFallsBackToTheOldName(t *testing.T) {
+	setMTLS(t, "/etc/mtls/tls.crt", "/etc/mtls/tls.key", "/etc/mtls/ca.crt", "")
+	t.Setenv("MTLS_HEALTH_PORT", "9290")
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if c.HealthPort != "9290" {
+		t.Fatalf("HealthPort = %q, want the MTLS_HEALTH_PORT value 9290", c.HealthPort)
+	}
+}
+
+func TestLoadMTLSHealthPortWinsOverTheOldName(t *testing.T) {
+	setMTLS(t, "/etc/mtls/tls.crt", "/etc/mtls/tls.key", "/etc/mtls/ca.crt", "9190")
+	t.Setenv("MTLS_HEALTH_PORT", "9290")
+	c, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if c.HealthPort != "9190" {
+		t.Fatalf("HealthPort = %q, want HEALTH_PORT to win", c.HealthPort)
 	}
 }
 
@@ -76,6 +101,6 @@ func TestLoadMTLSHealthPortCannotBeTheGRPCPort(t *testing.T) {
 	t.Setenv("GRPC_PORT", "9090")
 	setMTLS(t, "/etc/mtls/tls.crt", "/etc/mtls/tls.key", "/etc/mtls/ca.crt", "9090")
 	if _, err := Load(); err == nil {
-		t.Fatal("MTLS_HEALTH_PORT equal to GRPC_PORT loaded without error")
+		t.Fatal("HEALTH_PORT equal to GRPC_PORT loaded without error")
 	}
 }
