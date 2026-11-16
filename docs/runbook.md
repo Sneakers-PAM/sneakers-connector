@@ -102,8 +102,8 @@ the target's certificate only when:
 A chain that matches no pin fails before the credential is sent. The detail names the presented
 fingerprints (the server's certificate first) and the pinned ones, so the old and new certificate
 can be compared before re-pinning. A target with no usable pin keeps using the system roots, so a
-publicly issued certificate needs no pin. The vault doesn't send TLS pins with jobs yet; until it
-does, every LDAPS target uses the system roots.
+publicly issued certificate needs no pin. The pins come with each job (`target.tls_cert_pins`), so a re-pin
+takes effect on the next job.
 
 The pin dialog reads a target's chain with the connector's `ScanTLSCertificate` (see
 [api.md](api.md#tls-certificate-scan)): one connection per scan, on demand, never on a schedule. It
@@ -169,10 +169,25 @@ The only other connection to a target that stops at the host key is the SSH brok
 `ScanHostKey`, which the pin dialog calls on demand: one connection per scan, never on a schedule.
 The connector's own TLS scan is the same idea for certificates.
 
+### A certificate Go refuses to parse
+
+Some directories present a certificate Go's x509 parser rejects outright. The usual case is a Samba
+AD domain controller's self-generated LDAPS certificate, which has a negative serial number. The
+connection fails while the certificate is being read, so the heartbeat reports `UNREACHABLE` with a
+detail such as `x509: negative serial number`, not an untrusted-certificate result. Neither
+`CONNECTOR_TLS_INSECURE` nor a pin helps, because both act on a certificate that was already
+parsed.
+
+The fix is on the directory's side: issue the LDAPS certificate from the domain's CA, or use any
+certificate with a positive serial number, then pin or trust it as usual. The detail is shown
+wherever the check result is: the `sneakers_test_secret` MCP tool returns it, and the heartbeat
+pill's tooltip shows it.
+
 ## Troubleshooting
 
 | Log message | Meaning |
 |---|---|
+| `UNREACHABLE` result with `x509: negative serial number` in its detail | The target's LDAPS certificate can't be parsed. See "A certificate Go refuses to parse" above. |
 | `claim due heartbeats` or `claim due rotations` (warn) | The vault is unreachable, or refused the token. The error says which (`Unavailable`, `PermissionDenied`). |
 | `connector token file unusable` or `unavailable` (error, at start) | The token file is missing, unreadable or empty. |
 | `no adapter registered for protocol` (warn) | A job names a protocol the connector doesn't have; it is reported so the vault moves on. |
@@ -185,6 +200,8 @@ The connector's own TLS scan is the same idea for certificates.
 | `tls certificate matches none of the target's pins; the credential was not sent` (warn) | The TLS target presented a certificate that isn't pinned and isn't signed by a pinned CA. `detail` names the presented and pinned fingerprints; re-pin the target or investigate. |
 | `rotation stopped: tls certificate matches none of the target's pins; nothing changed` (warn) | The same, on a rotation: the password wasn't changed. |
 | `TLS certificate scan off` (warn, at start) | No `WORKLOAD_OIDC_ISSUER` is set, so the scan isn't served and the pin dialog can't read certificates. Set the `WORKLOAD_*` variables (see configuration.md). |
+| `vault call` (debug), `vault call failed` (warn) | Every outbound call to the vault, with `target`, `method`, `duration_ms` and the gRPC `code`. A failed call logs at warn. Requests and responses are never logged. |
+| `heartbeat job done`, `rotation job done` (info) | One line per job with `secret_id`, `protocol`, the result (`result`, or `change` and `validate` for a rotation) and `duration_ms`. No credential, token or detail text. |
 | `tls scan failed` (warn) | A scan couldn't read a chain: `outcome` is `unreachable` or `handshake_failed`. |
 | `tls scan refused` (warn) | A scan for something other than a person, or over the rate limit. |
 | `target unreachable; backing off` (warn) | The target couldn't be reached; `backoff` says how long until it is tried again. |

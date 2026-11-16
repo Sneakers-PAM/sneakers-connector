@@ -5,6 +5,7 @@ package vaultclient
 
 import (
 	"context"
+	log "github.com/Bugs5382/go-log"
 	"net"
 	"sync"
 	"testing"
@@ -53,7 +54,7 @@ func stampBuild(t *testing.T, version, commit string) {
 func TestDialSendsTheBuildOnEveryPullCall(t *testing.T) {
 	stampBuild(t, "v0.9.1", "0123456789abcdef0123456789abcdef01234567")
 	addr, rec := startMDVault(t)
-	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr}))
+	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr}), log.Nop())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -86,7 +87,7 @@ func TestDialSendsTheBuildOnEveryPullCall(t *testing.T) {
 func TestDialSendsDevAndUnknownForAnUnstampedBuild(t *testing.T) {
 	stampBuild(t, "", "")
 	addr, rec := startMDVault(t)
-	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr}))
+	c, err := dial(envOf(map[string]string{"VAULT_ADDR": addr}), log.Nop())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}

@@ -118,6 +118,7 @@ func tick(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, ide
 // host key matching none of its pins are reported without revealing the
 // credential or contacting the target (see targetGuard).
 func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity, job *vaultv1.HeartbeatJob, g *targetGuard) {
+	start := time.Now()
 	logger := lg.Ctx(ctx).With(log.F("secret_id", job.GetSecretId()))
 
 	ctx, cancel := context.WithTimeout(ctx, jobTimeout)
@@ -128,7 +129,7 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 	if !ok || job.GetConnection() == nil {
 		detail := fmt.Sprintf("no adapter for protocol %q", protocol)
 		logger.Warn("no adapter registered for protocol; reporting unreachable", log.F("protocol", protocol))
-		reportHeartbeat(ctx, lg, vc, identity, job, vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE, detail, adapter.AccountFlags{})
+		reportHeartbeat(ctx, lg, vc, identity, job, start, vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE, detail, adapter.AccountFlags{})
 		return
 	}
 
@@ -139,20 +140,21 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 		Domain:   job.GetTarget().GetDomain(),
 		Realm:    job.GetTarget().GetRealm(),
 		HostKeys: job.GetTarget().GetSshHostKeys(),
+		TLSPins:  job.GetTarget().GetTlsCertPins(),
 		Logon:    logonFormat(job.GetLogon()),
 	}
 
 	if pc, ok := a.(adapter.Prechecker); ok {
 		if result, detail, refuse := pc.Precheck(conn); refuse {
 			logger.Warn("heartbeat refused before contacting the target", log.F("protocol", protocol), log.F("result", result.String()), log.F("detail", detail))
-			reportHeartbeat(ctx, lg, vc, identity, job, toHeartbeatResult(result), detail, adapter.AccountFlags{})
+			reportHeartbeat(ctx, lg, vc, identity, job, start, toHeartbeatResult(result), detail, adapter.AccountFlags{})
 			return
 		}
 	}
 	key := guardKey(protocol, conn)
 	if result, detail, held := g.hold(key); held {
 		logger.Info("heartbeat held: target not contacted", log.F("protocol", protocol), log.F("result", result.String()), log.F("detail", detail))
-		reportHeartbeat(ctx, lg, vc, identity, job, toHeartbeatResult(result), detail, adapter.AccountFlags{})
+		reportHeartbeat(ctx, lg, vc, identity, job, start, toHeartbeatResult(result), detail, adapter.AccountFlags{})
 		return
 	}
 
@@ -199,13 +201,13 @@ func processJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClien
 		logger.Debug("heartbeat read account flags", log.F("builtin_administrator", flags.BuiltinAdministrator), log.F("admin_count", flags.AdminCount))
 	}
 
-	reportHeartbeat(ctx, lg, vc, identity, job, toHeartbeatResult(result), detail, flags)
+	reportHeartbeat(ctx, lg, vc, identity, job, start, toHeartbeatResult(result), detail, flags)
 }
 
 // reportHeartbeat reports a job's outcome back to the vault, logging
 // (without failing the batch) if the report RPC itself errors. Account
 // flags are sent only when the adapter could read them.
-func reportHeartbeat(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity, job *vaultv1.HeartbeatJob, result vaultv1.HeartbeatResult, detail string, flags adapter.AccountFlags) {
+func reportHeartbeat(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity, job *vaultv1.HeartbeatJob, start time.Time, result vaultv1.HeartbeatResult, detail string, flags adapter.AccountFlags) {
 	req := &vaultv1.ReportHeartbeatRequest{
 		Identity: identity,
 		SecretId: job.GetSecretId(),
@@ -220,6 +222,7 @@ func reportHeartbeat(ctx context.Context, lg log.Logger, vc vaultv1.VaultService
 		logger := lg.Ctx(ctx).With(log.F("secret_id", job.GetSecretId()))
 		logger.Warn("report heartbeat", log.F("error", err.Error()), log.F("error_code", status.Code(err).String()))
 	}
+	lg.Ctx(ctx).Info("heartbeat job done", log.F("secret_id", job.GetSecretId()), log.F("protocol", job.GetConnection().GetProtocol()), log.F("result", result.String()), log.F("duration_ms", time.Since(start).Milliseconds()))
 }
 
 // logonFormat converts a job's AD logon format for the adapter. Unset stays
@@ -240,6 +243,8 @@ func toHeartbeatResult(r adapter.Result) vaultv1.HeartbeatResult {
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNREACHABLE
 	case adapter.UntrustedCertificate:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_UNTRUSTED_CERTIFICATE
+	case adapter.CertificateMismatch:
+		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_CERTIFICATE_MISMATCH
 	case adapter.HostKeyNotPinned:
 		return vaultv1.HeartbeatResult_HEARTBEAT_RESULT_HOST_KEY_NOT_PINNED
 	case adapter.HostKeyMismatch:
@@ -294,6 +299,7 @@ func rotationTick(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceCli
 // password and mask a broken rotation, while Kerberos invalidates
 // immediately and so proves the NEW password authoritatively.
 func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity, job *vaultv1.RotationJob) {
+	start := time.Now()
 	logger := lg.Ctx(ctx).With(log.F("secret_id", job.GetSecretId()))
 
 	ctx, cancel := context.WithTimeout(ctx, rotJobTimeout)
@@ -304,7 +310,7 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 	if !ok || job.GetConnection() == nil {
 		detail := fmt.Sprintf("no adapter for protocol %q", protocol)
 		logger.Warn("no adapter registered for protocol; reporting rotation skipped", log.F("protocol", protocol))
-		reportRotation(ctx, lg, vc, identity, job, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, detail, 0, false)
+		reportRotation(ctx, lg, vc, identity, job, start, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, detail, 0, false)
 		return
 	}
 
@@ -325,6 +331,7 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 		Domain:   job.GetTarget().GetDomain(),
 		Realm:    job.GetTarget().GetRealm(),
 		HostKeys: job.GetTarget().GetSshHostKeys(),
+		TLSPins:  job.GetTarget().GetTlsCertPins(),
 		Logon:    logonFormat(job.GetLogon()),
 	}
 	current := adapter.Cred{
@@ -344,13 +351,13 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 
 	if changeResult == adapter.Refused {
 		logger.Warn("rotation refused: built-in Administrator account; nothing changed", log.F("result", changeResult.String()), log.F("reason", changeDetail))
-		reportRotation(ctx, lg, vc, identity, job, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, changeDetail, version, true)
+		reportRotation(ctx, lg, vc, identity, job, start, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, changeDetail, version, true)
 		return
 	}
 	if changeResult != adapter.Valid {
 		// The target was never successfully changed: there is nothing to
 		// validate, and the vault must keep the OLD credential active.
-		reportRotation(ctx, lg, vc, identity, job, changePhase, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, changeDetail, version, false)
+		reportRotation(ctx, lg, vc, identity, job, start, changePhase, vaultv1.RotationPhase_ROTATION_PHASE_SKIPPED, changeDetail, version, false)
 		return
 	}
 
@@ -372,7 +379,7 @@ func processRotationJob(ctx context.Context, lg log.Logger, vc vaultv1.VaultServ
 	if detail == "" {
 		detail = changeDetail
 	}
-	reportRotation(ctx, lg, vc, identity, job, changePhase, validatePhase, detail, version, false)
+	reportRotation(ctx, lg, vc, identity, job, start, changePhase, validatePhase, detail, version, false)
 }
 
 // validateAdapterFor picks the adapter used to validate the freshly-rotated
@@ -398,7 +405,7 @@ func validateAdapterFor(changeAdapter adapter.Adapter, realm string) adapter.Ada
 // reported SKIPPED before any reveal) pass 0, which the vault handles
 // defensively. builtinAdmin marks a refusal of the built-in Administrator so
 // the vault stops scheduling it; otherwise the field is left unset.
-func reportRotation(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity, job *vaultv1.RotationJob, change, validate vaultv1.RotationPhase, detail string, version int32, builtinAdmin bool) {
+func reportRotation(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceClient, identity *vaultv1.WorkerIdentity, job *vaultv1.RotationJob, start time.Time, change, validate vaultv1.RotationPhase, detail string, version int32, builtinAdmin bool) {
 	req := &vaultv1.ReportRotationRequest{
 		Identity: identity,
 		SecretId: job.GetSecretId(),
@@ -414,6 +421,7 @@ func reportRotation(ctx context.Context, lg log.Logger, vc vaultv1.VaultServiceC
 		logger := lg.Ctx(ctx).With(log.F("secret_id", job.GetSecretId()))
 		logger.Warn("report rotation", log.F("error", err.Error()), log.F("error_code", status.Code(err).String()))
 	}
+	lg.Ctx(ctx).Info("rotation job done", log.F("secret_id", job.GetSecretId()), log.F("protocol", job.GetConnection().GetProtocol()), log.F("change", change.String()), log.F("validate", validate.String()), log.F("duration_ms", time.Since(start).Milliseconds()))
 }
 
 // toRotationPhase maps an adapter outcome onto the wire RotationPhase
