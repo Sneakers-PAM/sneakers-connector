@@ -5,6 +5,7 @@ go 1.26.11
 require (
 	github.com/Bugs5382/go-buildinfo v1.1.0
 	github.com/Bugs5382/go-log v1.3.0
+	github.com/Bugs5382/go-mtls v1.0.0
 	github.com/Bugs5382/go-otel v1.6.0
 	github.com/Bugs5382/go-workload-identity v1.0.1
 	github.com/go-ldap/ldap/v3 v3.4.14
@@ -21,7 +22,6 @@ require (
 
 require (
 	github.com/Azure/go-ntlmssp v0.1.1 // indirect
-	github.com/Bugs5382/go-mtls v1.0.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.8 // indirect
